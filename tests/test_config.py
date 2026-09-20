@@ -56,11 +56,30 @@ def test_scalars_have_expected_types(config):
 
 
 def test_variant_config_deep_merges_without_losing_classes():
+    """A variant overrides only what it names and inherits everything else.
+
+    model_v2.yaml overrides a *nested* key (data.background_augmentation), which
+    is the case most likely to clobber siblings if the merge were shallow, so
+    the sibling keys under `data` are asserted explicitly.
+    """
+    base = load_config()
     v2 = load_config("config/model_v2.yaml")
-    assert v2.model_version == "v2"
-    assert v2.class_names == REQUIRED_CLASSES          # inherited from the base file
-    assert v2.get("model", "dropout") == 0.3           # overridden
-    assert v2.path("raw_dir") == load_config().path("raw_dir")
+
+    assert v2.model_version == "v2"                        # overridden
+    assert v2.class_names == REQUIRED_CLASSES              # inherited
+    assert v2.path("raw_dir") == base.path("raw_dir")      # inherited
+
+    # The nested override took effect ...
+    assert base.get("data", "background_augmentation", "enabled") is False
+    assert v2.get("data", "background_augmentation", "enabled") is True
+    assert v2.get("data", "background_augmentation", "harvest_from") == "Yellow Rust"
+
+    # ... without dropping the siblings alongside it under `data`.
+    assert v2.image_size == base.image_size
+    assert v2.batch_size == base.batch_size
+    assert v2.split_fractions() == base.split_fractions()
+    assert v2.get("data", "deduplication", "hash_size") == \
+        base.get("data", "deduplication", "hash_size")
 
 
 def test_overrides_are_applied():

@@ -3,7 +3,21 @@
 Read this before using Leaf Lens for anything that matters. It is an
 experimental prototype, not a diagnostic instrument.
 
-## The overriding limitation
+## The overriding limitation, measured
+
+**The model classifies by background, not by leaf.** This was established
+causally, not inferred: transplanting backgrounds behind test images — leaf and
+disease unchanged — drops accuracy from 100% to 21.5%, and 71.8% of the
+composites are called Yellow Rust at 89% mean confidence.
+
+Three of the four classes are studio photographs on a pale background; the
+fourth is field photography. Background predicts class, so the network learned
+background. Full evidence, and the v2 experiment intended to break it, are in
+[`v2_experiment.md`](v2_experiment.md).
+
+Everything below remains true and is compounded by this.
+
+## The original framing
 
 **The model scores 100% on its test split, and that number is close to
 meaningless.**

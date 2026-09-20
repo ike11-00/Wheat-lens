@@ -15,13 +15,15 @@ model's prediction.
 > images across four classes. It scores **100.00% on 617 unseen test images**.
 >
 > **That number is close to meaningless, and the project says so.** Seven
-> colour statistics reach 98.54% on the same split — the benchmark is trivially
-> easy, because the images are curated single leaves on plain backgrounds.
-> Leakage was ruled out twice; the score is honest, it just does not predict
-> field performance. See [`docs/testing.md`](docs/testing.md) for the four
-> checks that established this, and
-> [What you need to provide](#what-you-need-to-provide) for what is still
-> missing.
+> colour statistics reach 98.54% on the same split, and the model has since
+> been shown to be reading the **background** rather than the leaf: replacing
+> the background of test images drops accuracy from 100% to **21.5%**, with the
+> model 89% confident while wrong.
+>
+> The cause is a dataset confound — three classes are studio photographs, one
+> is field photography — documented with causal evidence in
+> [`docs/v2_experiment.md`](docs/v2_experiment.md). A v2 experiment to break
+> the confound is **built but not yet run**.
 
 ---
 
@@ -508,6 +510,10 @@ The short version — the full discussion is in
   unflagged prediction is not a verified one.
 * **Confidence is not correctness.** Networks trained on small datasets are
   typically over-confident, and no calibration is applied.
+* **The model reads the background, not the leaf.** Demonstrated causally:
+  replacing the background of test images drops accuracy from 100% to 21.5%,
+  and 71.8% of those images get called Yellow Rust. See
+  [`docs/v2_experiment.md`](docs/v2_experiment.md).
 * **Test accuracy does not predict field accuracy.** Curated images are easier
   than real photographs; that is what realistic testing exists to measure.
 * **Karnal Bunt is not detected at all** — it was removed for want of any

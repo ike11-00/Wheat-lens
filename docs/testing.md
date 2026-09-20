@@ -295,6 +295,29 @@ global colour statistics stop being informative.
 estimate.** The number that matters is the one from realistic-condition
 testing, which requires field photographs nobody has supplied yet.
 
+### Background robustness — the metric that matters
+
+```bash
+python -m src.testing.background_robustness
+```
+
+Classifies the test split twice: unchanged, and with the background replaced by
+a patch from the field-photography class. The leaf is identical in both, so any
+accuracy lost depended on the background.
+
+Measured for v1 on 591 test images / 1,170 composites:
+
+| Condition | Accuracy |
+|---|---|
+| Original background | 100.0% |
+| Background replaced | **21.5%** |
+| **Lost to the background** | **78.5 pp** |
+
+Backgrounds are taken from the **test** split, so the evaluation cannot be
+gamed by the v2 training augmentation, which harvests from the training split.
+
+See [`v2_experiment.md`](v2_experiment.md).
+
 ### Still not tested
 
 | Artefact | Status |

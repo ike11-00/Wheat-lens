@@ -1,31 +1,49 @@
 # ---------------------------------------------------------------------------
-# Leaf Lens - model V2 variant
+# Leaf Lens - model V2: the background-confound experiment
 #
-# This file contains ONLY the keys that differ from config/config.yaml; it is
-# deep-merged on top of the defaults, so a change to a shared setting (class
-# list, paths) stays in one place.
+# Only the keys that differ from config/config.yaml; deep-merged on top of it.
 #
+#     python -m src.data.prepare_dataset                              # split first
+#     python -m src.data.augment_backgrounds --config config/model_v2.yaml
+#     python -m src.data.augment_backgrounds --verify                 # leakage check
 #     python -m src.model.train    --config config/model_v2.yaml
 #     python -m src.model.evaluate --config config/model_v2.yaml
+#     python -m src.testing.background_robustness --version v2
 #     python -m src.model.compare_models v1 v2
 #
-# The changes below are a *starting point for an experiment*, not a claim that
-# V2 is better. Whether they help is decided by the comparison report, on the
-# same test split. Change one thing at a time if you want to know which change
-# mattered.
+# WHAT THIS TESTS
+# ---------------
+# v1 learned "field background => Yellow Rust", because three of its four
+# classes are studio photographs and the fourth is field photography. This
+# variant gives the studio classes varied backgrounds so that background stops
+# carrying class information, and asks whether the model then relies on the
+# leaf instead.
+#
+# The measurement that matters is NOT test accuracy - v1 already scores 100%
+# there. It is background robustness: accuracy on test images whose backgrounds
+# have been replaced. v1 scores about 16% on that. See docs/v2_experiment.md.
+#
+# This is an experiment with an expected-to-be-partial result, not a fix. The
+# limitations are documented; read them before quoting any number from it.
 # ---------------------------------------------------------------------------
 
 model:
   version: "v2"
-  dropout: 0.3              # V1: 0.2 - more regularisation for a small dataset
-  label_smoothing: 0.05     # V1: 0.0 - softens over-confident predictions
 
-training:
-  epochs: 30                # V1: 20
-  fine_tune:
-    unfreeze_layers: 60     # V1: 40 - lets more of the backbone adapt
-    epochs: 15              # V1: 10
-  augmentation:
-    rotation: 0.10          # V1: 0.08
-    zoom: 0.20              # V1: 0.15
-    translation: 0.15       # V1: 0.10
+data:
+  background_augmentation:
+    enabled: true
+    # The three studio classes. Yellow Rust is deliberately absent: it already
+    # has varied real backgrounds, and augmenting it would not break anything.
+    classes: ["Healthy", "Brown Rust", "Powdery Mildew"]
+    # Reuse the real field backgrounds the model was keying on. Harvested from
+    # the TRAINING split only, never validation or test.
+    harvest_from: "Yellow Rust"
+    background_sources: ["harvested", "procedural"]
+    copies_per_image: 1
+    seed: 42
+    leaf_scale: [0.45, 0.95]
+    brightness_threshold: 0.70
+    saturation_threshold: 0.35
+    min_leaf_fraction: 0.04
+    jpeg_quality: 92

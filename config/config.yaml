@@ -93,6 +93,40 @@ data:
     hash_threshold: 5             # ~2% of 256 bits; 0 = identical hash only
     drop_exact_duplicates: true   # keep one representative of identical files
 
+  # -------------------------------------------------------------------------
+  # Background augmentation (the v2 experiment)
+  #
+  # DISABLED BY DEFAULT. Turning this on changes nothing about v1; it is read
+  # only by `python -m src.data.augment_backgrounds`, which runs AFTER the
+  # split and writes only into data/train.
+  #
+  # Why it exists: in the v1 dataset three classes are studio photographs on a
+  # pale background and one is field photography, so background predicts class.
+  # Transplanting field backgrounds behind the studio classes dropped accuracy
+  # from 100% to about 16%. See docs/v2_experiment.md.
+  #
+  # `classes`            which classes to generate varied backgrounds for -
+  #                      the studio classes.
+  # `harvest_from`       the field-photography class whose real backgrounds are
+  #                      reused. Must NOT appear in `classes`.
+  # `background_sources` procedural (synthetic textures, no data needed) and/or
+  #                      harvested (real patches from harvest_from's TRAINING
+  #                      split only).
+  # `seed`               fixed, so the generated set is reproducible.
+  # -------------------------------------------------------------------------
+  background_augmentation:
+    enabled: false
+    classes: []                   # e.g. ["Healthy", "Brown Rust", "Powdery Mildew"]
+    harvest_from: null            # e.g. "Yellow Rust"
+    background_sources: ["procedural"]
+    copies_per_image: 1
+    seed: 42
+    leaf_scale: [0.5, 0.95]       # fraction of the frame the leaf occupies
+    brightness_threshold: 0.70    # above this AND below saturation => background
+    saturation_threshold: 0.35
+    min_leaf_fraction: 0.04       # skip frames where segmentation finds almost no leaf
+    jpeg_quality: 92
+
   # Warn when the largest class is more than this many times the smallest.
   imbalance_warn_ratio: 3.0
   # Warn when a class has fewer than this many usable images.
