@@ -15,10 +15,13 @@
 #   Python 3.14          NOT supported - no TensorFlow release ships a cp314
 #                        wheel yet. Use 3.13 or earlier until one does.
 #
-# Verified in this project: the full test suite (90 tests), model loading and
-# the web application all pass on TensorFlow 2.17.1 (NumPy 1.26) and on
-# TensorFlow 2.21.0 (NumPy 2.4). A model trained under 2.17 loads under 2.21
-# and produces bit-identical predictions.
+# Verified in this project: the full test suite, model loading and the web
+# application all pass on TensorFlow 2.17.1 (NumPy 1.26) and on TensorFlow
+# 2.21.0 (NumPy 2.4). A model trained under 2.17 loads under 2.21 and produces
+# bit-identical predictions.
+#
+# On macOS (including Apple Silicon) the `tensorflow` distribution is installed
+# instead of `tensorflow-cpu` - see the note on the requirement lines below.
 #
 # If you need a specific Python version, python.org keeps every release
 # archived, and pyenv / conda / uv can install any of them:
@@ -28,8 +31,22 @@
 # --- machine learning -------------------------------------------------
 # Lower bound: the oldest version this project was tested against.
 # Upper bound: excludes a hypothetical 3.x with breaking API changes.
-# GPU users: replace tensorflow-cpu with `tensorflow`.
-tensorflow-cpu>=2.17,<3.0
+#
+# Two distributions, selected by platform, because `tensorflow-cpu` does not
+# publish wheels for every platform. As of 2.21.0 it ships only
+# manylinux_2_27_x86_64 and win_amd64 - there has never been a macOS wheel, so
+# `pip install tensorflow-cpu` fails outright on any Mac, Apple Silicon or
+# Intel, and on ARM Linux.
+#
+# `tensorflow` covers macosx_12_0_arm64, manylinux aarch64 and x86_64, and
+# win_amd64. On macOS it is CPU-only regardless (GPU support is the separate
+# `tensorflow-metal` plugin), so the two are functionally identical here; the
+# -cpu variant is preferred where available only because it omits the CUDA
+# payload and is a much smaller download.
+#
+# Both expose the same `tensorflow` module, so no source change is needed.
+tensorflow-cpu>=2.17,<3.0; sys_platform == "win32" or (sys_platform == "linux" and platform_machine == "x86_64")
+tensorflow>=2.17,<3.0; sys_platform == "darwin" or (sys_platform == "linux" and platform_machine != "x86_64")
 scikit-learn>=1.4,<2.0        # metrics, confusion matrix, classification report
 
 # NumPy is deliberately NOT pinned here. TensorFlow declares its own
