@@ -24,7 +24,9 @@ unfreeze depth) comes from ``config.yaml``.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+import os
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import tensorflow as tf
 from tensorflow import keras
@@ -56,8 +58,86 @@ SUPPORTED_ARCHITECTURES: Dict[str, Tuple[Any, Any]] = {
 }
 
 
+# Sentinel distinguishing "caller said nothing" from "caller explicitly said
+# None" (which is a legitimate request for a randomly initialised backbone).
+_FROM_CONFIG = object()
+
+
 class ModelBuildError(RuntimeError):
     """Raised when the requested architecture or configuration is unusable."""
+
+
+def normalise_weights(value: Any) -> Optional[str]:
+    """Map the several spellings of "no pretrained weights" onto ``None``."""
+    if value in (None, "", "none", "None", "null", False):
+        return None
+    return str(value)
+
+
+def keras_cache_dir() -> Path:
+    """Directory Keras downloads pretrained weights into."""
+    return Path(os.environ.get("KERAS_HOME", Path.home() / ".keras")) / "models"
+
+
+# Cache per (architecture, size) so the probe runs at most once per process.
+_WEIGHTS_PROBE: Dict[Tuple[str, int], bool] = {}
+
+
+def imagenet_weights_available(config: Config, force: bool = False) -> bool:
+    """Whether ImageNet weights can be obtained for the configured backbone.
+
+    Returns ``True`` when the weights are already in the Keras cache **or** can
+    be downloaded now. Returns ``False`` when they are absent and unreachable,
+    which is the state an offline machine is in.
+
+    This is a genuine probe rather than a filename guess: Keras stores weights
+    under architecture-specific names that also vary with input size, so
+    attempting the load is the only reliable check. The result is memoised, so
+    the cost is paid once per process.
+    """
+    architecture = str(config.get("model", "architecture", default="MobileNetV2"))
+    key = (architecture, config.image_size)
+    if not force and key in _WEIGHTS_PROBE:
+        return _WEIGHTS_PROBE[key]
+
+    entry = SUPPORTED_ARCHITECTURES.get(architecture)
+    if entry is None:
+        _WEIGHTS_PROBE[key] = False
+        return False
+
+    constructor = entry[0]
+    try:
+        constructor(include_top=False, weights="imagenet",
+                    input_shape=(config.image_size, config.image_size, 3))
+        available = True
+    except Exception:  # noqa: BLE001 - any failure means "not available"
+        available = False
+    _WEIGHTS_PROBE[key] = available
+    return available
+
+
+def prefetch_weights(config: Config) -> Path:
+    """Download the configured backbone's ImageNet weights into the cache.
+
+    Run this once on a machine that has network access so that later runs -
+    including the test suite and any offline training - need none. Raises
+    :class:`ModelBuildError` with an actionable message if the download fails.
+    """
+    architecture = str(config.get("model", "architecture", default="MobileNetV2"))
+    if architecture not in SUPPORTED_ARCHITECTURES:
+        raise ModelBuildError(f"unsupported architecture {architecture!r}")
+    constructor = SUPPORTED_ARCHITECTURES[architecture][0]
+    try:
+        constructor(include_top=False, weights="imagenet",
+                    input_shape=(config.image_size, config.image_size, 3))
+    except Exception as exc:  # noqa: BLE001
+        raise ModelBuildError(
+            f"could not download ImageNet weights for {architecture} at "
+            f"{config.image_size}x{config.image_size}: {exc}"
+        ) from exc
+    LOGGER.info("ImageNet weights for %s (%dpx) are cached in %s",
+                architecture, config.image_size, keras_cache_dir())
+    return keras_cache_dir()
 
 
 @keras.utils.register_keras_serializable(package="leaf_lens")
@@ -138,8 +218,29 @@ def build_augmentation(config: Config) -> Optional[keras.Sequential]:
 
 
 def build_model(config: Config, num_classes: Optional[int] = None,
-                include_augmentation: bool = True) -> keras.Model:
+                include_augmentation: bool = True,
+                weights: Union[str, None, object] = _FROM_CONFIG) -> keras.Model:
     """Assemble the classifier.
+
+    Parameters
+    ----------
+    config:
+        Supplies the architecture, input size, class count and head settings.
+    num_classes:
+        Overrides ``config.num_classes``.
+    include_augmentation:
+        Whether to embed the training-time augmentation pipeline.
+    weights:
+        Backbone initialisation, injected rather than always read from
+        configuration. Omit it and the value comes from ``model.weights``
+        (``imagenet`` in production). Pass ``None`` to build the same
+        architecture with a randomly initialised backbone, which needs no
+        download - this is what the test suite uses, explicitly, so that
+        architectural behaviour can be verified without network access.
+
+    Passing ``None`` is never done implicitly: production configuration asks
+    for ``imagenet``, and if those weights cannot be obtained this function
+    raises rather than quietly degrading to an untrained backbone.
 
     Returns an **uncompiled** model; use :func:`compile_model`.
     """
@@ -156,8 +257,9 @@ def build_model(config: Config, num_classes: Optional[int] = None,
     if classes < 2:
         raise ModelBuildError(f"need at least 2 classes, configuration defines {classes}")
 
-    weights = config.get("model", "weights", default="imagenet")
-    weights = None if weights in (None, "", "none", "None") else weights
+    if weights is _FROM_CONFIG:
+        weights = config.get("model", "weights", default="imagenet")
+    weights = normalise_weights(weights)
 
     inputs = keras.Input(shape=(size, size, 3), name="image", dtype="float32")
 
@@ -174,12 +276,8 @@ def build_model(config: Config, num_classes: Optional[int] = None,
     try:
         base = constructor(include_top=False, weights=weights,
                            input_shape=(size, size, 3), name=f"{architecture.lower()}_base")
-    except Exception as exc:  # network failure while fetching ImageNet weights
-        raise ModelBuildError(
-            f"could not construct {architecture} with weights={weights!r}: {exc}. "
-            f"If the pretrained weights cannot be downloaded, set model.weights to 'none' "
-            f"in config.yaml - but note that training from scratch needs far more data."
-        ) from exc
+    except Exception as exc:  # usually a failed ImageNet weight download
+        raise ModelBuildError(_weights_error_message(architecture, weights, config, exc)) from exc
 
     base.trainable = False  # phase 1: frozen feature extractor
     x = base(x, training=False)
@@ -293,3 +391,77 @@ def count_parameters(model: keras.Model) -> Dict[str, int]:
         "non_trainable": non_trainable,
         "total": trainable + non_trainable,
     }
+
+
+def _weights_error_message(architecture: str, weights: Optional[str],
+                           config: Config, exc: Exception) -> str:
+    """Actionable text for a backbone that could not be constructed."""
+    if weights is None:
+        return (f"could not construct {architecture} with a randomly initialised "
+                f"backbone: {exc}")
+
+    cache = keras_cache_dir()
+    return (
+        f"could not construct {architecture} with weights={weights!r}: {exc}\n"
+        f"\n"
+        f"The pretrained weights are not in the Keras cache ({cache}) and could not "
+        f"be downloaded. This usually means the machine has no internet access.\n"
+        f"\n"
+        f"Fix it in one of these ways:\n"
+        f"  1. On a machine with network access, warm the cache once:\n"
+        f"       python -m src.model.build_model --prefetch\n"
+        f"     then copy {cache} to this machine. The weights are about 9 MB.\n"
+        f"  2. Point KERAS_HOME at a directory that already holds them.\n"
+        f"  3. Set model.weights to 'none' in config.yaml to train from a random\n"
+        f"     initialisation. Only do this deliberately: transfer learning is the\n"
+        f"     reason this project works on a few thousand images, and a random\n"
+        f"     backbone needs far more data to reach comparable accuracy.\n"
+        f"\n"
+        f"Running the tests? They do not need these weights - see tests/conftest.py."
+    )
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    """CLI for cache management: ``python -m src.model.build_model --prefetch``."""
+    import argparse
+    import sys
+
+    from ..utils.config import load_config
+
+    parser = argparse.ArgumentParser(
+        description="Inspect or warm the pretrained-weights cache")
+    parser.add_argument("--config", default=None)
+    parser.add_argument("--prefetch", action="store_true",
+                        help="download the configured backbone's ImageNet weights")
+    parser.add_argument("--check", action="store_true",
+                        help="report whether the weights are obtainable, then exit")
+    args = parser.parse_args(argv)
+
+    config = load_config(args.config)
+    architecture = config.get("model", "architecture", default="MobileNetV2")
+
+    if args.prefetch:
+        try:
+            cache = prefetch_weights(config)
+        except ModelBuildError as exc:
+            LOGGER.error("%s", exc)
+            return 1
+        print(f"ImageNet weights for {architecture} "
+              f"({config.image_size}x{config.image_size}) are cached in {cache}")
+        return 0
+
+    available = imagenet_weights_available(config)
+    print(f"architecture      : {architecture}")
+    print(f"input size        : {config.image_size}")
+    print(f"keras cache       : {keras_cache_dir()}")
+    print(f"imagenet weights  : {'available' if available else 'NOT available'}")
+    if not available:
+        print("\nRun 'python -m src.model.build_model --prefetch' on a machine with "
+              "network access.")
+    return 0 if available or args.check else 1
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(main())

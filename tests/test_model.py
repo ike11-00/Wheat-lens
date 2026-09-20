@@ -12,11 +12,19 @@ from src.model.datasets import (EmptyDatasetError, build_dataset, compute_class_
                                 list_split_files)
 from src.utils.config import load_config
 
+from .conftest import offline_safe_config
+
 
 @pytest.fixture(scope="module")
 def small_config():
-    """A tiny model so the tests stay fast."""
-    return load_config(overrides={"data": {"image_size": 96, "batch_size": 4}})
+    """A tiny model so the tests stay fast, with no pretrained download.
+
+    `weights=None` is explicit: every assertion below is about how the graph is
+    assembled, which the backbone's numeric values cannot change. See the note
+    in tests/conftest.py, and `test_imagenet_weights_path_builds` for coverage
+    of the production ImageNet path.
+    """
+    return offline_safe_config(data={"image_size": 96, "batch_size": 4})
 
 
 def test_model_has_one_output_per_configured_class(small_config):
@@ -52,7 +60,7 @@ def test_output_scales_with_class_count(small_config):
 
 
 def test_unknown_architecture_rejected(small_config):
-    config = load_config(overrides={"model": {"architecture": "NotARealNet"}})
+    config = offline_safe_config(model={"architecture": "NotARealNet"})
     with pytest.raises(ModelBuildError):
         build_model(config)
 
@@ -72,9 +80,9 @@ def test_augmentation_pipeline_built_from_config(small_config):
 
 
 def test_augmentation_can_be_disabled():
-    config = load_config(overrides={"training": {"augmentation": {
+    config = offline_safe_config(training={"augmentation": {
         "horizontal_flip": False, "vertical_flip": False, "rotation": 0,
-        "zoom": 0, "translation": 0, "brightness": 0, "contrast": 0}}})
+        "zoom": 0, "translation": 0, "brightness": 0, "contrast": 0}})
     assert build_augmentation(config) is None
 
 
@@ -107,23 +115,23 @@ def test_compile_sets_loss_and_metrics(small_config):
 
 
 def test_unsupported_optimizer_rejected(small_config):
-    config = load_config(overrides={"training": {"optimizer": "nope"}})
+    config = offline_safe_config(training={"optimizer": "nope"})
     with pytest.raises(ModelBuildError):
         compile_model(build_model(small_config), config)
 
 
 def test_dataset_raises_clearly_when_split_is_empty(tmp_path):
-    config = load_config(overrides={"paths": {"train_dir": str(tmp_path / "train")}})
+    config = offline_safe_config(paths={"train_dir": str(tmp_path / "train")})
     with pytest.raises(EmptyDatasetError) as excinfo:
         build_dataset(config, "train")
     assert "prepare_dataset" in str(excinfo.value)
 
 
 def test_dataset_labels_follow_config_order(tmp_path):
-    config = load_config(overrides={
-        "paths": {"train_dir": str(tmp_path / "train")},
-        "data": {"image_size": 32, "batch_size": 2},
-    })
+    config = offline_safe_config(
+        paths={"train_dir": str(tmp_path / "train")},
+        data={"image_size": 32, "batch_size": 2},
+    )
     train_dir = tmp_path / "train"
     for index, directory in enumerate(config.class_dirs):
         folder = train_dir / directory
@@ -153,3 +161,55 @@ def test_class_weights_handle_absent_class(small_config):
     weights = compute_class_weights(small_config, [0] * 10 + [1] * 10)
     assert all(np.isfinite(value) for value in weights.values())
     assert len(weights) == small_config.num_classes
+
+
+def test_imagenet_weights_path_builds(config, imagenet_weights_available):
+    """The production configuration - MobileNetV2 with ImageNet weights.
+
+    This is the one test that exercises the real pretrained path. It runs
+    whenever the weights are cached or downloadable and skips otherwise, so an
+    offline machine gets a clean skip rather than 30 errors. Warm the cache
+    with `python -m src.model.build_model --prefetch`.
+    """
+    if not imagenet_weights_available:
+        pytest.skip("ImageNet weights are not cached and cannot be downloaded; "
+                    "run 'python -m src.model.build_model --prefetch' when online")
+
+    production = load_config(overrides={"data": {"image_size": 96}})
+    assert production.get("model", "weights") == "imagenet"
+
+    model = build_model(production)
+    assert model.output_shape[-1] == production.num_classes
+
+    # A pretrained backbone must not be all-zero or randomly distributed the way
+    # a fresh initialisation is; check it actually carries learned values.
+    backbone = next(layer for layer in model.layers
+                    if getattr(layer, "name", "").endswith("_base"))
+    kernels = [w for w in backbone.weights if "kernel" in w.name]
+    assert kernels, "backbone exposes no kernel weights"
+    assert float(np.abs(kernels[0].numpy()).sum()) > 0.0
+
+    # And the graph is the same one the offline tests verify.
+    batch = np.random.randint(0, 256, (2, 96, 96, 3)).astype("float32")
+    probabilities = model(batch, training=False).numpy()
+    assert probabilities.shape == (2, production.num_classes)
+    assert np.allclose(probabilities.sum(axis=1), 1.0, atol=1e-5)
+
+
+def test_random_backbone_differs_from_pretrained(small_config, imagenet_weights_available):
+    """weights=None and weights='imagenet' must produce different parameters.
+
+    Guards against the fix degenerating into "always random": if these two ever
+    came out identical, the production path would silently be untrained.
+    """
+    if not imagenet_weights_available:
+        pytest.skip("ImageNet weights are not available for comparison")
+
+    random_backbone = build_model(small_config, weights=None)
+    pretrained = build_model(small_config, weights="imagenet")
+
+    def first_kernel(model):
+        base = next(l for l in model.layers if getattr(l, "name", "").endswith("_base"))
+        return next(w for w in base.weights if "kernel" in w.name).numpy()
+
+    assert not np.allclose(first_kernel(random_backbone), first_kernel(pretrained))

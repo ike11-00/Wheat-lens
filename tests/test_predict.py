@@ -15,6 +15,8 @@ from src.model.predict import (ModelNotAvailableError, Predictor,
 from src.utils.config import load_config
 from src.utils.image_io import InvalidImageError
 
+from .conftest import offline_safe_config
+
 
 @pytest.fixture(scope="module")
 def trained_stub(tmp_path_factory):
@@ -25,7 +27,10 @@ def trained_stub(tmp_path_factory):
     """
     directory = tmp_path_factory.mktemp("stub_model") / "v1"
     directory.mkdir(parents=True)
-    config = load_config(overrides={"data": {"image_size": 96}})
+    # weights=None: this fixture needs a model that saves, loads and emits a
+    # valid distribution. Pretrained values are irrelevant to that and would
+    # make the whole file require network access. See tests/conftest.py.
+    config = offline_safe_config(data={"image_size": 96})
     model = compile_model(build_model(config), config)
     model.save(directory / "model.keras")
     (directory / "labels.json").write_text(json.dumps({

@@ -13,6 +13,8 @@ from app.app import create_app
 from src.model.build_model import build_model, compile_model
 from src.utils.config import load_config
 
+from .conftest import offline_safe_config
+
 
 def _jpeg_bytes(size=(120, 120), colour=(80, 130, 70)) -> bytes:
     buffer = io.BytesIO()
@@ -45,7 +47,9 @@ def stub_models_dir(tmp_path_factory):
     root = tmp_path_factory.mktemp("app_models")
     version_dir = root / "v1"
     version_dir.mkdir()
-    config = load_config(overrides={"data": {"image_size": 96}})
+    # weights=None: the API tests exercise upload validation and response
+    # shape, neither of which depends on pretrained values. See tests/conftest.py.
+    config = offline_safe_config(data={"image_size": 96})
     compile_model(build_model(config), config).save(version_dir / "model.keras")
     (version_dir / "labels.json").write_text(json.dumps({
         "class_names": config.class_names,

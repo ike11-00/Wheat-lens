@@ -24,7 +24,30 @@ pytest tests/test_model.py -v
 | `tests/test_predict.py` | Missing-model handling, `labels.json` authority, result schema, determinism, batch/single agreement, threshold behaviour, uncertainty signals, class-count mismatch |
 | `tests/test_app.py` | Page rendering, status endpoint, prediction endpoint, every supported format, rejection of unsupported/corrupt/empty/tiny/oversized uploads, JSON errors with no stack traces |
 
-Two tests deserve special mention.
+### The suite runs offline
+
+Model tests construct MobileNetV2 through `build_model`, whose production
+configuration asks for ImageNet weights. Downloading those on every test run
+would make the whole suite depend on network access and on a warm cache.
+
+The tests therefore pass `weights=None` explicitly, via `offline_safe_config`
+in `tests/conftest.py`. That is a test double, not a weakened assertion: the
+properties under test — output shape, probability normalisation, preprocessing
+inside the graph, augmentation inactive at inference, freezing and unfreezing,
+loss and metrics, label ordering — are all determined by how the graph is
+assembled, not by the numbers in the backbone.
+
+The production path keeps its own coverage:
+
+| Test | What it checks | When it runs |
+|---|---|---|
+| `test_imagenet_weights_path_builds` | The production config builds, the backbone carries non-zero learned weights, and the graph behaves as the offline tests assert | When the weights are cached or downloadable |
+| `test_random_backbone_differs_from_pretrained` | `weights=None` and `weights='imagenet'` produce genuinely different parameters — guards against the offline mode silently becoming the only mode | Same |
+
+Both skip with an actionable message when the weights cannot be obtained, so an
+air-gapped machine sees `90 passed, 2 skipped` rather than 30 errors.
+
+Two further tests deserve special mention.
 
 **`test_near_duplicates_never_straddle_splits`** is the leakage guarantee. It
 creates near-identical re-saves of one image, runs the real splitter, and

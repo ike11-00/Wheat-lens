@@ -531,10 +531,23 @@ Run `python -m src.data.prepare_dataset` first — and before that, put images i
 Train one: `python -m src.model.train`. The web app and CLI both degrade
 gracefully until then.
 
-**`could not construct MobileNetV2 with weights='imagenet'`**
-The ImageNet weights could not be downloaded. Check network access to
-`storage.googleapis.com`, or set `model.weights: none` — at a real cost in
-accuracy on a small dataset.
+**`could not construct MobileNetV2 with weights='imagenet': URL fetch failure`**
+The pretrained weights are not in the Keras cache and could not be downloaded —
+usually no internet access. The error message lists the fixes; the usual one is
+to warm the cache once on a machine that has network:
+
+```bash
+python -m src.model.build_model --prefetch      # downloads ~9 MB
+python -m src.model.build_model                 # reports cache status
+```
+
+then copy `~/.keras/models` to the offline machine, or point `KERAS_HOME` at a
+directory that already holds it.
+
+**Note this does not affect the tests.** The test suite builds its models with
+`weights=None` explicitly and needs no download; it passes offline. Only
+training, and the two tests that specifically cover the pretrained path, need
+the weights — and those two skip cleanly when it is unavailable.
 
 **`model at ... has N outputs but M class names are configured`**
 The model was trained with a different class list. Retrain, or restore the

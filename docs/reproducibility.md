@@ -76,9 +76,35 @@ pytest -q                          # confirm the install
 
 The first `build_model` call downloads MobileNetV2's ImageNet weights
 (~9.4 MB) from `storage.googleapis.com` and caches them in `~/.keras/models/`.
-On a machine without that access, set `model.weights: none` in
-`config/config.yaml` — but a randomly initialised backbone needs far more data
-than a wheat-disease dataset typically provides.
+
+### Running without internet access
+
+**The test suite needs no download.** It constructs its models with
+`weights=None` explicitly — see the note at the bottom of `tests/conftest.py`
+for why that does not weaken any assertion — so `pytest` passes on an
+air-gapped machine. Two tests specifically cover the pretrained production path
+and skip with an actionable message when the weights are unobtainable.
+
+**Training does need the weights**, because transfer learning is the whole
+reason the model works on a few thousand images. Warm the cache once where you
+have network:
+
+```bash
+python -m src.model.build_model --prefetch     # download and cache
+python -m src.model.build_model                # report cache status
+```
+
+Then move `~/.keras/models` to the offline machine, or set `KERAS_HOME` to a
+directory that already contains it. The weights are architecture- *and*
+input-size-specific: MobileNetV2 at 224 px and at 96 px are different files, so
+prefetch with the same `data.image_size` you will train at.
+
+If the weights genuinely cannot be obtained, `build_model` raises
+`ModelBuildError` with the available remedies rather than quietly falling back
+to a random backbone. That fallback would produce a much weaker model while
+every log line and report still claimed transfer learning, so it is deliberately
+not automatic — setting `model.weights: none` is a decision you make explicitly
+in the configuration.
 
 ## Fixed parameters
 
