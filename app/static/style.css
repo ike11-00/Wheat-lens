@@ -29,6 +29,11 @@
 
 * { box-sizing: border-box; }
 
+/* The `hidden` attribute is how the JS shows and hides sections. Author rules
+   such as `.loading { display: flex }` would otherwise beat the user-agent
+   `[hidden] { display: none }` and leave hidden elements on screen. */
+[hidden] { display: none !important; }
+
 html { -webkit-text-size-adjust: 100%; }
 
 body {

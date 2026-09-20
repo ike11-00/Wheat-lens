@@ -224,3 +224,24 @@ def test_static_assets_are_served(client_without_model):
         response = client_without_model.get(f"/static/{asset}")
         assert response.status_code == 200
         assert len(response.data) > 100
+
+
+def test_hidden_attribute_is_not_overridden_by_display_rules(client_without_model):
+    """Regression: `.loading { display: flex }` used to beat `[hidden]`.
+
+    The interface shows and hides every section with the `hidden` attribute.
+    Author-level `display` rules outrank the user-agent `[hidden]` rule, so an
+    explicit reset is required or the spinner stays on screen after a result.
+    """
+    css = client_without_model.get("/static/style.css").get_data(as_text=True)
+    assert "[hidden]" in css and "display: none !important" in css
+
+
+def test_every_toggled_element_exists_in_the_page(client_without_model):
+    """The JS toggles these by id; a rename would silently break the flow."""
+    body = client_without_model.get("/").get_data(as_text=True)
+    for element_id in ("dropzone", "file-input", "preview-area", "preview-image",
+                       "predict-button", "reset-button", "loading", "error-box",
+                       "result-card", "result-class", "result-confidence",
+                       "low-confidence", "uncertain-box", "probability-list"):
+        assert f'id="{element_id}"' in body, f"missing element: {element_id}"
