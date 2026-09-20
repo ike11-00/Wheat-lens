@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ project_name }} — Wheat Leaf Disease Classification</title>
+  <meta name="description" content="Experimental machine-learning prototype that classifies wheat leaf photographs into five categories.">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌾</text></svg>">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <h1 class="brand">LEAF&nbsp;LENS</h1>
+      <p class="tagline">Wheat Leaf Disease Classification</p>
+      <p class="subtitle">Using machine learning to detect agricultural diseases</p>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+
+    {% if not model_available %}
+    <div class="banner banner-warning" role="status">
+      <strong>No trained model is available yet.</strong>
+      The interface below is fully functional, but predictions are disabled until a model has
+      been trained. See the project README for how to add a dataset and run
+      <code>python -m src.model.train</code>.
+    </div>
+    {% endif %}
+
+    <!-- ---------------------------------------------------------------- -->
+    <section class="card" id="upload-card">
+      <h2>Upload a photograph of a wheat leaf</h2>
+      <p class="muted">
+        Supported formats: {{ allowed_extensions }}. Maximum size: {{ '%g'|format(max_upload_mb) }} MB.
+      </p>
+
+      <form id="upload-form" novalidate>
+        <div id="dropzone" class="dropzone" tabindex="0" role="button"
+             aria-describedby="dropzone-hint">
+          <svg class="dropzone-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 16V4m0 0L8 8m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"
+                  fill="none" stroke="currentColor" stroke-width="1.6"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <p class="dropzone-text"><strong>Choose an image</strong> or drag one here</p>
+          <p id="dropzone-hint" class="muted small">The image stays on this machine; it is sent to the local server only for classification.</p>
+          <input type="file" id="file-input" name="image"
+                 accept="{{ accept_attribute }}" hidden>
+        </div>
+
+        <div id="preview-area" class="preview-area" hidden>
+          <img id="preview-image" alt="Preview of the wheat leaf photograph you selected">
+          <div class="preview-meta">
+            <p id="preview-name" class="preview-name"></p>
+            <p id="preview-size" class="muted small"></p>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="submit" id="predict-button" class="button button-primary"
+                  {% if not model_available %}disabled title="No trained model is available"{% endif %}>
+            PREDICT
+          </button>
+          <button type="button" id="reset-button" class="button button-secondary" hidden>
+            Upload another image
+          </button>
+        </div>
+      </form>
+
+      <div id="loading" class="loading" hidden role="status" aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>Analysing the image…</span>
+      </div>
+
+      <div id="error-box" class="banner banner-error" hidden role="alert"></div>
+    </section>
+
+    <!-- ---------------------------------------------------------------- -->
+    <section class="card" id="result-card" hidden aria-live="polite">
+      <h2>Result</h2>
+
+      <div class="result-head">
+        <div class="result-block">
+          <p class="label">Predicted category</p>
+          <p id="result-class" class="result-class"></p>
+        </div>
+        <div class="result-block">
+          <p class="label">Confidence</p>
+          <p id="result-confidence" class="result-confidence"></p>
+        </div>
+      </div>
+
+      <div id="low-confidence" class="banner banner-warning" hidden>
+        <strong>Low-confidence prediction.</strong>
+        Consider taking a clearer photograph or using another image.
+      </div>
+
+      <div id="uncertain-box" class="banner banner-info" hidden>
+        <strong>The model is uncertain about this image.</strong>
+        <ul id="uncertain-reasons"></ul>
+        <p class="small">
+          This check is based on how spread out the model's probabilities are. It cannot
+          reliably detect a disease or a subject the model was never trained on — the network
+          can still be confidently wrong on an unfamiliar image.
+        </p>
+      </div>
+
+      <h3>Probability distribution</h3>
+      <ul id="probability-list" class="probability-list"></ul>
+
+      <p class="muted small" id="confidence-note"></p>
+    </section>
+
+    <!-- ---------------------------------------------------------------- -->
+    <section class="card card-important">
+      <h2>Important</h2>
+      <p>
+        This is an experimental machine-learning prototype.
+        It is <strong>not</strong> a professional agricultural diagnostic tool.
+        Predictions may be incorrect.
+      </p>
+      <p class="muted small">
+        The model can only choose between the {{ class_names|length }} categories it was
+        trained on ({{ class_names|join(', ') }}). Any other condition — a different disease,
+        a nutrient deficiency, pest damage, or a photograph that is not a wheat leaf — will
+        still be forced into one of these categories. Confidence is the model's estimated
+        probability for its own prediction; it is not a guarantee of correctness. Do not use
+        this tool as the basis for a treatment decision.
+      </p>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p class="muted small">
+        Leaf Lens · experimental prototype ·
+        <span id="model-status">checking model status…</span>
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    window.LEAF_LENS = {
+      classNames: {{ class_names|tojson }},
+      confidenceThreshold: {{ confidence_threshold }},
+      maxUploadMb: {{ max_upload_mb }},
+      modelAvailable: {{ model_available|tojson }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+# Leaf Lens - Python dependencies
+# Verified working on Python 3.11.15 (Linux, CPU only).
+#
+#   python -m venv .venv
+#   source .venv/bin/activate
+#   pip install -r requirements.txt
+#
+# GPU users: replace tensorflow-cpu with `tensorflow==2.17.1`.
+
+# --- machine learning -------------------------------------------------
+tensorflow-cpu==2.17.1        # provides keras 3.15.x; MobileNetV2 backbone
+numpy==1.26.4                 # pinned <2.0 for TensorFlow 2.17 compatibility
+scikit-learn>=1.4,<2.0        # metrics, confusion matrix, classification report
+
+# --- images -----------------------------------------------------------
+Pillow>=10.0                  # image decoding, validation, resizing
+ImageHash>=4.3                # perceptual hashing for near-duplicate detection
+
+# --- data and plotting ------------------------------------------------
+pandas>=2.0                   # tabular handling in reports
+matplotlib>=3.8               # training curves, distributions, grids
+seaborn>=0.13                 # confusion-matrix heat maps
+PyYAML>=6.0                   # configuration files
+
+# --- web application --------------------------------------------------
+Flask>=3.0                    # prediction API and interface
+
+# --- development ------------------------------------------------------
+pytest>=8.0                   # test suite
+
+# --- optional ---------------------------------------------------------
+# kaggle>=1.6                 # only needed for `python -m src.data.download_dataset --kaggle`

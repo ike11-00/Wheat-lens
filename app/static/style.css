@@ -1,0 +1,320 @@
+/* ==========================================================================
+   Leaf Lens - interface styles
+   Deliberately simple: one column, generous spacing, readable at phone width.
+   The focus of the project is the ML pipeline, not the visual design.
+   ========================================================================== */
+
+:root {
+  --green-900: #1f3d20;
+  --green-700: #2f6b32;
+  --green-500: #3f7d3f;
+  --green-100: #e8f1e6;
+  --amber-600: #a4680f;
+  --amber-100: #fdf3dd;
+  --red-700:   #9a3025;
+  --red-100:   #fbe9e7;
+  --blue-700:  #2d5a8a;
+  --blue-100:  #e7f0f9;
+
+  --ink:        #1c1f1c;
+  --ink-muted:  #5d6560;
+  --surface:    #ffffff;
+  --page:       #f5f7f4;
+  --border:     #d9e0d8;
+
+  --radius: 12px;
+  --shadow: 0 1px 2px rgba(20, 30, 20, .06), 0 6px 18px rgba(20, 30, 20, .06);
+  --max-width: 860px;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.wrap {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+.skip-link:focus {
+  left: 12px; top: 12px;
+  z-index: 10;
+  background: var(--surface);
+  padding: 8px 14px;
+  border-radius: 8px;
+}
+
+/* --- header --------------------------------------------------------- */
+.site-header {
+  background: linear-gradient(160deg, var(--green-700), var(--green-900));
+  color: #fff;
+  padding: 40px 0 34px;
+  text-align: center;
+}
+.brand {
+  margin: 0;
+  font-size: clamp(1.9rem, 6vw, 2.8rem);
+  font-weight: 700;
+  letter-spacing: .14em;
+}
+.tagline {
+  margin: 8px 0 2px;
+  font-size: clamp(1rem, 3vw, 1.15rem);
+  font-weight: 500;
+  opacity: .95;
+}
+.subtitle {
+  margin: 0;
+  font-size: .9rem;
+  opacity: .75;
+}
+
+/* --- cards ---------------------------------------------------------- */
+main { padding: 26px 0 40px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.card h2 {
+  margin: 0 0 6px;
+  font-size: 1.15rem;
+  letter-spacing: .02em;
+}
+.card h3 {
+  margin: 24px 0 10px;
+  font-size: 1rem;
+}
+.card-important {
+  border-left: 4px solid var(--amber-600);
+  background: #fffdf8;
+}
+
+.muted { color: var(--ink-muted); }
+.small { font-size: .85rem; }
+
+/* --- dropzone ------------------------------------------------------- */
+.dropzone {
+  margin-top: 16px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: #fbfdfa;
+  padding: 34px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.dropzone:hover,
+.dropzone:focus-visible,
+.dropzone.is-dragover {
+  border-color: var(--green-500);
+  background: var(--green-100);
+  outline: none;
+}
+.dropzone-icon {
+  width: 38px; height: 38px;
+  color: var(--green-700);
+  margin-bottom: 6px;
+}
+.dropzone-text { margin: 0 0 4px; }
+.dropzone-text strong { color: var(--green-700); }
+.dropzone p:last-child { margin-bottom: 0; }
+
+/* --- preview -------------------------------------------------------- */
+.preview-area {
+  margin-top: 18px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fbfdfa;
+}
+#preview-image {
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.preview-meta { min-width: 0; flex: 1 1 180px; }
+.preview-name {
+  margin: 0 0 2px;
+  font-weight: 600;
+  word-break: break-all;
+}
+.preview-meta p:last-child { margin-bottom: 0; }
+
+/* --- buttons -------------------------------------------------------- */
+.actions {
+  margin-top: 20px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.button {
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: .04em;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 12px 26px;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+}
+.button:focus-visible { outline: 3px solid var(--blue-700); outline-offset: 2px; }
+.button-primary {
+  background: var(--green-700);
+  color: #fff;
+}
+.button-primary:hover:not(:disabled) { background: var(--green-900); }
+.button-primary:disabled { opacity: .5; cursor: not-allowed; }
+.button-secondary {
+  background: #fff;
+  color: var(--green-900);
+  border-color: var(--border);
+}
+.button-secondary:hover { background: var(--green-100); border-color: var(--green-500); }
+
+/* --- loading -------------------------------------------------------- */
+.loading {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-muted);
+}
+.spinner {
+  width: 18px; height: 18px;
+  border: 2.5px solid var(--border);
+  border-top-color: var(--green-700);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+  flex: none;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 2.4s; }
+  * { transition-duration: .01ms !important; }
+}
+
+/* --- banners -------------------------------------------------------- */
+.banner {
+  margin: 16px 0 0;
+  padding: 13px 16px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: .92rem;
+}
+.banner ul { margin: 8px 0 6px; padding-left: 20px; }
+.banner p:last-child, .banner ul:last-child { margin-bottom: 0; }
+.banner-warning { background: var(--amber-100); border-color: #e8d29a; color: #5d3d05; }
+.banner-error   { background: var(--red-100);   border-color: #e9bbb4; color: var(--red-700); }
+.banner-info    { background: var(--blue-100);  border-color: #bcd3e9; color: #1d3f61; }
+
+/* --- result --------------------------------------------------------- */
+.result-head {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.result-block {
+  flex: 1 1 200px;
+  background: var(--green-100);
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+.label {
+  margin: 0 0 2px;
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--green-700);
+  font-weight: 700;
+}
+.result-class {
+  margin: 0;
+  font-size: clamp(1.35rem, 5vw, 1.7rem);
+  font-weight: 700;
+  color: var(--green-900);
+  line-height: 1.25;
+}
+.result-confidence {
+  margin: 0;
+  font-size: clamp(1.35rem, 5vw, 1.7rem);
+  font-weight: 700;
+  color: var(--green-900);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- probability bars ----------------------------------------------- */
+.probability-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.probability-row { margin-bottom: 14px; }
+.probability-row:last-child { margin-bottom: 0; }
+.probability-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: .92rem;
+  margin-bottom: 5px;
+}
+.probability-name { font-weight: 500; }
+.probability-row.is-top .probability-name { font-weight: 700; color: var(--green-900); }
+.probability-value { font-variant-numeric: tabular-nums; color: var(--ink-muted); }
+.probability-row.is-top .probability-value { color: var(--green-900); font-weight: 700; }
+.probability-track {
+  height: 10px;
+  background: #eceee9;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.probability-fill {
+  height: 100%;
+  width: 0;
+  background: #a8bda6;
+  border-radius: 999px;
+  transition: width .45s ease;
+}
+.probability-row.is-top .probability-fill { background: var(--green-500); }
+
+/* --- footer --------------------------------------------------------- */
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding: 18px 0 26px;
+  text-align: center;
+}
+
+/* --- responsive ------------------------------------------------------ */
+@media (max-width: 560px) {
+  .card { padding: 18px; }
+  .site-header { padding: 30px 0 26px; }
+  #preview-image { width: 100%; height: 190px; }
+  .button { flex: 1 1 100%; text-align: center; }
+}

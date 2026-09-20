@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# Leaf Lens - model V2 variant
+#
+# This file contains ONLY the keys that differ from config/config.yaml; it is
+# deep-merged on top of the defaults, so a change to a shared setting (class
+# list, paths) stays in one place.
+#
+#     python -m src.model.train    --config config/model_v2.yaml
+#     python -m src.model.evaluate --config config/model_v2.yaml
+#     python -m src.model.compare_models v1 v2
+#
+# The changes below are a *starting point for an experiment*, not a claim that
+# V2 is better. Whether they help is decided by the comparison report, on the
+# same test split. Change one thing at a time if you want to know which change
+# mattered.
+# ---------------------------------------------------------------------------
+
+model:
+  version: "v2"
+  dropout: 0.3              # V1: 0.2 - more regularisation for a small dataset
+  label_smoothing: 0.05     # V1: 0.0 - softens over-confident predictions
+
+training:
+  epochs: 30                # V1: 20
+  fine_tune:
+    unfreeze_layers: 60     # V1: 40 - lets more of the backbone adapt
+    epochs: 15              # V1: 10
+  augmentation:
+    rotation: 0.10          # V1: 0.08
+    zoom: 0.20              # V1: 0.15
+    translation: 0.15       # V1: 0.10

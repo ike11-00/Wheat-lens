@@ -1,0 +1,141 @@
+# ---------------------------------------------------------------------------
+# Leaf Lens - central configuration
+#
+# Every script in this project reads its settings from this file (or from a
+# copy of it passed with --config).  Nothing below should be duplicated inside
+# the Python source; if you need to change a class list, a path or a training
+# hyper-parameter, change it here.
+# ---------------------------------------------------------------------------
+
+project:
+  name: "Leaf Lens"
+  description: "Using Machine Learning to Detect Agricultural Diseases (wheat leaves)"
+
+# ---------------------------------------------------------------------------
+# Classes
+#
+# `name`      - the label shown to the user.
+# `directory` - the folder name used on disk (data/raw/<directory>/ ...).
+#
+# Adding a sixth class is a two-step operation: append an entry here and add a
+# matching folder under data/raw/.  No Python file needs to be edited - the
+# number of output units, the confusion-matrix axes, the web UI bars and the
+# report tables are all derived from this list.
+# ---------------------------------------------------------------------------
+classes:
+  - name: "Healthy"
+    directory: "Healthy"
+    aliases: ["healthy", "Healthy_Wheat", "normal"]
+  - name: "Yellow Rust"
+    directory: "Yellow_Rust"
+    aliases: ["yellow_rust", "YellowRust", "stripe_rust", "Stripe_Rust", "yellow rust"]
+  - name: "Karnal Bunt"
+    directory: "Karnal_Bunt"
+    aliases: ["karnal_bunt", "KarnalBunt", "partial_bunt", "karnal bunt"]
+  - name: "Brown Rust"
+    directory: "Brown_Rust"
+    aliases: ["brown_rust", "BrownRust", "leaf_rust", "Leaf_Rust", "brown rust"]
+  - name: "Powdery Mildew"
+    directory: "Powdery_Mildew"
+    aliases: ["powdery_mildew", "PowderyMildew", "mildew", "Mildew", "powdery mildew"]
+
+# ---------------------------------------------------------------------------
+# Paths (relative to the repository root unless absolute)
+# ---------------------------------------------------------------------------
+paths:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  train_dir: "data/train"
+  validation_dir: "data/validation"
+  test_dir: "data/test"
+  realistic_dir: "data/realistic"
+  models_dir: "models"
+  results_dir: "results"
+
+# ---------------------------------------------------------------------------
+# Data handling
+# ---------------------------------------------------------------------------
+data:
+  image_size: 224                 # square edge length fed to the network
+  batch_size: 32
+  supported_extensions: [".jpg", ".jpeg", ".png", ".webp", ".bmp"]
+  min_image_pixels: 32            # images smaller than this on either edge are rejected
+  max_upload_mb: 10               # web-app upload limit
+
+  split:
+    train: 0.75
+    validation: 0.125
+    test: 0.125
+
+  # Near-duplicate handling.  Images whose perceptual hashes are within
+  # `hash_threshold` Hamming distance are treated as the same photograph and
+  # are always placed in the SAME split, so that a picture can never appear in
+  # both training and test data.  See docs/dataset.md.
+  deduplication:
+    enabled: true
+    hash_size: 8
+    hash_threshold: 5             # 0 = byte-identical perceptual hash only
+    drop_exact_duplicates: true   # keep one representative of identical files
+
+  # Warn when the largest class is more than this many times the smallest.
+  imbalance_warn_ratio: 3.0
+  # Warn when a class has fewer than this many usable images.
+  min_images_per_class: 20
+
+# ---------------------------------------------------------------------------
+# Model
+# ---------------------------------------------------------------------------
+model:
+  version: "v1"
+  architecture: "MobileNetV2"     # see src/model/build_model.py for supported names
+  weights: "imagenet"
+  dropout: 0.2
+  dense_units: 0                  # 0 = classifier head is GAP -> Dropout -> Dense(n_classes)
+  l2: 0.0
+  label_smoothing: 0.0
+
+# ---------------------------------------------------------------------------
+# Training
+# ---------------------------------------------------------------------------
+training:
+  epochs: 20
+  learning_rate: 0.0001
+  optimizer: "adam"
+  early_stopping_patience: 5
+  reduce_lr_patience: 3
+  reduce_lr_factor: 0.5
+  min_lr: 0.000001
+  use_class_weights: true         # compensates for class imbalance in the loss
+
+  # Phase 2: unfreeze the top of the backbone and continue at a lower LR.
+  fine_tune:
+    enabled: true
+    epochs: 10
+    unfreeze_layers: 40           # number of trailing backbone layers to unfreeze
+    learning_rate: 0.00001
+
+  augmentation:
+    horizontal_flip: true
+    vertical_flip: false
+    rotation: 0.08                # fraction of 2*pi  (~ +/- 29 degrees)
+    zoom: 0.15
+    translation: 0.10
+    brightness: 0.15
+    contrast: 0.15
+
+# ---------------------------------------------------------------------------
+# Inference
+# ---------------------------------------------------------------------------
+inference:
+  confidence_threshold: 0.60      # below this the UI shows a low-confidence warning
+  # Out-of-distribution heuristic. Both signals are reported by the predictor;
+  # see docs/model.md for exactly what they can and cannot do.
+  ood:
+    enabled: true
+    entropy_ratio_threshold: 0.80 # normalised entropy above this => "uncertain"
+    margin_threshold: 0.10        # top1 - top2 probability below this => "uncertain"
+
+# ---------------------------------------------------------------------------
+# Reproducibility
+# ---------------------------------------------------------------------------
+random_seed: 42
