@@ -197,13 +197,86 @@ agree.
 
 ## Current results
 
+Model v1, test split (617 unseen images), evaluated 2026-09-20.
+
+| Metric | Value |
+|---|---|
+| Accuracy | **100.00%** |
+| Macro / weighted F1 | 1.0000 |
+| Errors | 0 of 617 |
+| Mean confidence | 99.8% |
+
+| Class | Support | Precision | Recall | F1 |
+|---|---|---|---|---|
+| Healthy | 194 | 1.0000 | 1.0000 | 1.0000 |
+| Yellow Rust | 26 | 1.0000 | 1.0000 | 1.0000 |
+| Brown Rust | 206 | 1.0000 | 1.0000 | 1.0000 |
+| Powdery Mildew | 191 | 1.0000 | 1.0000 | 1.0000 |
+
+The confusion matrix is diagonal. Error analysis has nothing to analyse.
+
+### This is a warning, not an achievement
+
+A perfect confusion matrix on a four-class disease problem means something is
+trivially separable. Four checks were run to find out what.
+
+**1. Is it leakage?** No. Two independent checks. `validate_dataset
+--split-report` re-hashes every prepared file and found no image in more than
+one split. A nearest-neighbour analysis over 256-bit perceptual hashes found the
+closest training neighbour of any test image at Hamming distance 10, with a
+median of 40 — nothing remotely duplicate-like.
+
+**2. Is it the resolution confound?** **No — this prediction was wrong.**
+Yellow Rust images are 24 MP while every other class is 0.16 MP, with no
+overlap, so resolution looked like an obvious shortcut. `confound_test.py`
+downsampled every test image to a common 400 px and re-encoded it. **Every
+class held 100% recall.** Resolution is ruled out as the mechanism. Noted here
+because the hypothesis was stated before the test and the test refuted it.
+
+*Caveat on that test:* both paths end at the model's 224×224 input, so
+normalising to 400 px first is a milder intervention than it sounds. It rules
+out a gross scale artefact, not every possible source signature.
+
+**3. Is the benchmark easy?** **Yes. This is the answer.**
+`python -m src.testing.baseline_control` fits deliberately weak models on
+deliberately crude features:
+
+| Features | Count | Model | Test accuracy |
+|---|---|---|---|
+| Colour statistics | 7 | Logistic regression | **98.54%** |
+| Colour statistics | 7 | Random forest | 98.22% |
+| Grayscale statistics | 3 | Random forest | 69.37% |
+| — | — | Chance | 25.0% |
+
+Seven numbers — per-channel mean and standard deviation plus overall
+brightness, on a 32×32 thumbnail, with no notion of texture, shape or spatial
+arrangement — reach 98.54%. **The network contributes +1.46 percentage points
+over that.**
+
+**4. Where does the signal come from?** Colour. Dropping to grayscale takes the
+baseline from 98.5% to 69.4%. That is consistent with real disease biology —
+rust is brown or yellow, mildew is white, healthy is green — and with images
+curated tightly enough that average hue nearly determines the class.
+
+### What this means for the headline number
+
+The 100% is real, honestly obtained, and reproducible on this data. It is also
+close to meaningless as a predictor of field performance. The images are single
+leaves, cropped, evenly lit, mostly on plain backgrounds. Under those
+conditions the problem reduces to "what colour is this image", which a linear
+model solves. Field photographs have variable lighting, soil and foliage
+backgrounds, multiple leaves at varying distances and partial symptoms — and
+global colour statistics stop being informative.
+
+**Treat 100% as an upper bound under ideal conditions, not an accuracy
+estimate.** The number that matters is the one from realistic-condition
+testing, which requires field photographs nobody has supplied yet.
+
+### Still not tested
+
 | Artefact | Status |
 |---|---|
-| Test accuracy | Not yet tested — requires dataset |
-| Per-class precision / recall / F1 | Not yet tested — requires dataset |
-| Confusion matrix | Not yet tested — requires dataset |
-| Error analysis | Not yet tested — requires dataset |
-| Realistic-condition testing | Not yet tested — requires dataset and field photographs |
-| V1 vs V2 comparison | Not yet tested — requires dataset |
-| Software test suite | **Passing** |
-| Full pipeline execution | **Verified on a synthetic fixture** |
+| Realistic-condition testing | **Not yet tested** — requires field photographs |
+| V1 vs V2 comparison | Not yet run — only v1 exists |
+| Any performance claim outside this dataset | Unsupported |
+

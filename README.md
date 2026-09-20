@@ -11,13 +11,17 @@ model's prediction.
 
 > ### Current status
 >
-> The pipeline is **built and tested**. The model is **not trained**, because
-> this repository contains **no dataset**.
+> The pipeline is **built and tested**, and **model v1 is trained** on 4,921
+> images across four classes. It scores **100.00% on 617 unseen test images**.
 >
-> Every script runs today; training stops with clear instructions until images
-> are placed in `data/raw/`. No accuracy figure is claimed anywhere in this
-> project, because none has been measured on real wheat images.
-> See [What you need to provide](#what-you-need-to-provide).
+> **That number is close to meaningless, and the project says so.** Seven
+> colour statistics reach 98.54% on the same split — the benchmark is trivially
+> easy, because the images are curated single leaves on plain backgrounds.
+> Leakage was ruled out twice; the score is honest, it just does not predict
+> field performance. See [`docs/testing.md`](docs/testing.md) for the four
+> checks that established this, and
+> [What you need to provide](#what-you-need-to-provide) for what is still
+> missing.
 
 ---
 

@@ -5,12 +5,24 @@ experimental prototype, not a diagnostic instrument.
 
 ## The overriding limitation
 
-**No model has been trained on real wheat-leaf images.** The pipeline is
-complete and tested; the classifier does not exist yet. Until a dataset is
-added and training is run, Leaf Lens cannot classify anything, and no
-performance claim about it can be made in either direction.
+**The model scores 100% on its test split, and that number is close to
+meaningless.**
 
-Everything below applies once you *have* trained a model.
+Model v1 is trained and classifies its four categories perfectly on 617 unseen
+images. Leakage was ruled out twice. The reason for the perfect score is that
+the benchmark is trivially easy: seven colour statistics — per-channel mean and
+standard deviation on a 32×32 thumbnail, no texture, no shape — reach 98.54% on
+the same split. The network adds 1.46 percentage points.
+
+The dataset is 4,921 curated images of single leaves, cropped, evenly lit,
+mostly on plain backgrounds. Under those conditions the task collapses to
+"what colour is this image". Field photographs do not have those properties.
+
+So: the model works on data that looks like its training data, and **nothing is
+known about how it behaves on a real photograph taken in a field.** No
+realistic-condition testing has been done, because that needs photographs
+nobody has supplied. Treat every figure in this project as an upper bound
+obtained under ideal conditions.
 
 ## Dataset limitations
 
@@ -39,12 +51,19 @@ a *limitation of the product*, not just of the data: a wheat plant with Karnal
 Bunt photographed at the leaf will be classified as one of the four categories
 the model does know, most likely Healthy. See `docs/dataset.md`.
 
-**Source confound when classes come from different datasets.** If the classes
-were assembled from more than one source, the network can learn which dataset
-an image came from rather than which disease it shows — camera, resolution,
-background and capture conditions all differ between collections. This inflates
-test accuracy and collapses on new photographs. Check `docs/dataset.md` for
-whether the data in use was mixed, and treat the affected classes accordingly.
+**Source confound when classes come from different datasets.** The current
+data *is* mixed: Yellow Rust comes from a different repository than the other
+three classes, and the two collections are perfectly separable on resolution
+(24 MP against 0.16 MP, no overlap). A network can learn which collection an
+image came from rather than which disease it shows.
+
+This was tested directly rather than assumed. `src/testing/confound_test.py`
+re-ran the test split with every image downsampled to a common resolution; every
+class held 100% recall, so a gross scale artefact is ruled out as the mechanism.
+That does not clear the dataset of every possible source signature — it rules
+out the one that was measurable. Yellow Rust is also the smallest class by a
+factor of eight, so class weighting amplifies whatever shortcut exists. Treat
+its metrics with more suspicion than the rest.
 
 **Laboratory versus field images.** Curated datasets favour a single leaf,
 flat, well lit, against a plain background. Field photographs have soil, other
@@ -97,10 +116,12 @@ common in the field.
 **No severity, no stage, no location.** The model says which class, not how
 much, how advanced, or where on the leaf.
 
-**Test accuracy does not transfer.** Test-split accuracy estimates performance
-on unseen images *from the same distribution as the training data*. It is not a
-prediction of field performance. Only realistic-condition testing with your own
-photographs speaks to that.
+**Test accuracy does not transfer — demonstrably so here.** Test-split accuracy
+estimates performance on unseen images *from the same distribution as the
+training data*. On this dataset that distribution is unusually narrow: a
+seven-number colour model scores 98.5% on it. The gap between that benchmark and
+a field photograph is the whole question, and it is unmeasured. Only
+realistic-condition testing with your own photographs speaks to it.
 
 ## Image and capture limitations
 
@@ -165,9 +186,18 @@ qualified agronomist or plant pathologist look at the plant.
 
 ## Honest summary
 
-Leaf Lens is a complete, tested machine-learning pipeline with an untrained
-model. Once trained, it will be a four-class image classifier of the kind that
-typically performs well on curated data and considerably worse in the field.
-The project's tooling is built to *measure* that gap — through unseen-image
-evaluation, error analysis and condition-based testing — rather than to hide
-it.
+Leaf Lens is a complete, tested machine-learning pipeline with a trained
+four-class model that scores 100% on its own test split and whose real-world
+accuracy is unknown.
+
+The perfect score is not fraud and not a bug — it was obtained cleanly, with
+leakage ruled out twice. It is a property of the benchmark: the data is curated
+tightly enough that average colour nearly determines the class, and a linear
+model on seven numbers gets 98.5% of the way there.
+
+The project's tooling is built to *measure* that gap rather than hide it. The
+baseline control and the confound test exist precisely because a headline
+accuracy is the easiest number in machine learning to obtain and the least
+informative to report alone. What is still missing is field photographs; until
+those exist, the honest statement about this model is that it works on images
+that look like its training set, and that nobody has checked anything else.

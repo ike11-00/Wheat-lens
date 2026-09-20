@@ -2,12 +2,24 @@
 
 ## Status
 
-**No model has been trained on real wheat-leaf data.** `models/` is empty.
+**Model v1 is trained.** Artefacts are in `models/v1/` (weights are not
+committed — retrain with `python -m src.model.train`).
 
-Every accuracy, precision, recall and F1 field in the project's reports is
-therefore **Not yet tested — requires dataset**. The architecture below has
-been built, compiled, trained, saved, reloaded and used for inference against
-synthetic fixtures, so the code path is verified; the *task* is not.
+| Item | Value |
+|---|---|
+| Architecture | MobileNetV2 (ImageNet) + 4-class softmax head |
+| Training images | 3,687 |
+| Phase 1 (frozen backbone) | 20 epochs, lr 1e-4 |
+| Phase 2 (fine-tuning) | 10 epochs, lr 1e-5, 26 layers unfrozen |
+| Class weights | Healthy 0.386, Yellow Rust 2.861, Brown Rust 0.363, Powdery Mildew 0.390 |
+| Best validation accuracy | 99.84% |
+| Final training accuracy | 99.59% |
+| **Test accuracy (unseen)** | **100.00%** |
+| Wall-clock training time | 28.9 min (4 CPU cores, no GPU) |
+
+**Read the test figure with the caveat in `docs/testing.md`.** A perfect score on
+617 unseen images is not the achievement it appears to be: seven colour
+statistics reach 98.54% on the same split. See "The benchmark is easy" there.
 
 ## Architecture
 
