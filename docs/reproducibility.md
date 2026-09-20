@@ -77,6 +77,21 @@ pytest -q                          # confirm the install
 The first `build_model` call downloads MobileNetV2's ImageNet weights
 (~9.4 MB) from `storage.googleapis.com` and caches them in `~/.keras/models/`.
 
+### macOS: certificates, not the code
+
+The project is plain `pathlib`-based Python with no OS-specific paths, shell
+calls or assumptions, and it runs on macOS unchanged. But macOS does have one
+well-known trap that produces exactly the `URL fetch failure` error above:
+Python installed from python.org does not use the system keychain and ships a
+CA bundle that must be installed once, via
+`/Applications/Python\ 3.x/Install\ Certificates.command`. Until that is run,
+every HTTPS download from Python fails, including the Keras weight fetch.
+
+Dataset directories copied or unzipped on macOS also carry `.DS_Store` files
+and AppleDouble `._name` sidecars. These are filtered by
+`src/utils/image_io.is_metadata_path`, so they are neither counted as images
+nor reported as corrupt; `tests/test_dataset_tools.py` covers that case.
+
 ### Running without internet access
 
 **The test suite needs no download.** It constructs its models with

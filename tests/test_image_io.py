@@ -130,3 +130,51 @@ def test_iter_image_files_filters_by_extension(tmp_path):
     (tmp_path / "sub" / "c.PNG").write_bytes(b"x")
     found = {p.name for p in iter_image_files(tmp_path, [".jpg", ".png"])}
     assert found == {"a.jpg", "c.PNG"}
+
+
+# ---------------------------------------------------------------------------
+# Operating-system metadata
+#
+# macOS writes .DS_Store into every folder Finder touches and AppleDouble
+# "._name" sidecars next to every file when a dataset is unzipped there;
+# Windows writes Thumbs.db and desktop.ini. None of it is data, and none of it
+# should be reported as a corrupt image.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("name", [
+    ".DS_Store", "Thumbs.db", "desktop.ini", ".gitkeep", "._photo.jpg",
+])
+def test_metadata_files_recognised(tmp_path, name):
+    from src.utils.image_io import is_metadata_path
+
+    assert is_metadata_path(tmp_path / name)
+
+
+@pytest.mark.parametrize("directory", ["__MACOSX", ".AppleDouble", "$RECYCLE.BIN"])
+def test_metadata_directories_recognised(tmp_path, directory):
+    from src.utils.image_io import is_metadata_path
+
+    assert is_metadata_path(tmp_path / directory / "photo.jpg")
+
+
+def test_real_images_are_not_metadata(tmp_path, sample_image):
+    from src.utils.image_io import is_metadata_path
+
+    assert not is_metadata_path(sample_image)
+    assert not is_metadata_path(tmp_path / "leaf_01.jpg")
+    # A legitimate filename that merely starts with a dot-free underscore.
+    assert not is_metadata_path(tmp_path / "_leaf.jpg")
+
+
+def test_iter_image_files_skips_os_metadata(tmp_path):
+    from src.utils.image_io import iter_image_files
+
+    (tmp_path / "real.jpg").write_bytes(b"x")
+    (tmp_path / ".DS_Store").write_bytes(b"x")
+    (tmp_path / "._real.jpg").write_bytes(b"x")
+    (tmp_path / "Thumbs.db").write_bytes(b"x")
+    (tmp_path / "__MACOSX").mkdir()
+    (tmp_path / "__MACOSX" / "copy.jpg").write_bytes(b"x")
+
+    found = {p.name for p in iter_image_files(tmp_path, [".jpg", ".png"])}
+    assert found == {"real.jpg"}

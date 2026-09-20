@@ -544,6 +544,28 @@ python -m src.model.build_model                 # reports cache status
 then copy `~/.keras/models` to the offline machine, or point `KERAS_HOME` at a
 directory that already holds it.
 
+**On macOS specifically**, the most common cause is not the network at all.
+Python installed from python.org does **not** use the system keychain; it ships
+its own CA bundle that must be installed once. Until you do, every HTTPS
+download from Python fails with `CERTIFICATE_VERIFY_FAILED`, which Keras
+surfaces as `URL fetch failure`. Fix it with:
+
+```bash
+/Applications/Python\ 3.13/Install\ Certificates.command   # match your version
+# or, for any Python:
+pip install --upgrade certifi
+```
+
+Homebrew and pyenv builds normally link against the system trust store and are
+unaffected. A quick way to tell which problem you have:
+
+```bash
+python -c "import urllib.request; urllib.request.urlopen('https://storage.googleapis.com'); print('TLS OK')"
+```
+
+If that prints a certificate error, it is the macOS bundle. If it hangs or
+reports a DNS or connection failure, it is the network.
+
 **Note this does not affect the tests.** The test suite builds its models with
 `weights=None` explicitly and needs no download; it passes offline. Only
 training, and the two tests that specifically cover the pretrained path, need

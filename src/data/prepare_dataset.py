@@ -47,6 +47,7 @@ from ..utils.image_io import (
     file_sha256,
     hamming_distance,
     inspect_image,
+    is_metadata_path,
     iter_image_files,
     perceptual_hash,
 )
@@ -112,7 +113,7 @@ def discover_raw_items(config: Config, raw_root: Path) -> Tuple[List[PreparedIte
     # Map every sub-directory of the raw root onto a configured class.
     class_to_dirs: Dict[str, List[Path]] = defaultdict(list)
     for child in sorted(raw_root.iterdir()):
-        if not child.is_dir() or child.name.startswith("."):
+        if not child.is_dir() or child.name.startswith(".") or is_metadata_path(child):
             continue
         spec = config.resolve_class(child.name)
         if spec is None:

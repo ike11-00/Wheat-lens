@@ -42,6 +42,7 @@ from ..utils.image_io import (
     file_sha256,
     hamming_distance,
     inspect_image,
+    is_metadata_path,
     iter_image_files,
     perceptual_hash,
 )
@@ -172,10 +173,12 @@ def validate_dataset(
         ]
         # Files with an unsupported extension are not returned by
         # iter_image_files; count them separately so nothing is hidden.
+        # Genuinely unsupported files only: OS metadata is not a data problem
+        # and reporting it as one buries the real findings.
         unsupported = [
             p for p in class_dir.rglob("*")
             if p.is_file() and p.suffix.lower() not in {e.lower() for e in extensions}
-            and p.name != ".gitkeep"
+            and not is_metadata_path(p)
         ]
         for path in unsupported:
             invalid_files.append({
@@ -223,6 +226,7 @@ def validate_dataset(
     unexpected = sorted(
         d.name for d in root.iterdir()
         if d.is_dir() and d.name not in known_dirs and not d.name.startswith(".")
+        and not is_metadata_path(d)
     )
     for name in unexpected:
         resolved = config.resolve_class(name)

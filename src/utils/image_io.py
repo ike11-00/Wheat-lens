@@ -45,14 +45,39 @@ class ImageInfo:
         return (self.width * self.height) / 1_000_000
 
 
+# Files and folders that operating systems scatter through image directories.
+# They are not data and must not be reported as corrupt images: a dataset
+# copied on macOS carries a .DS_Store in every folder, and one unzipped there
+# also carries an AppleDouble "._name" sidecar next to every file.
+METADATA_FILENAMES = {".DS_Store", "Thumbs.db", "desktop.ini", ".gitkeep"}
+METADATA_DIRECTORIES = {"__MACOSX", ".AppleDouble", ".Spotlight-V100", ".Trashes",
+                        "$RECYCLE.BIN", "System Volume Information"}
+
+
+def is_metadata_path(path: Path) -> bool:
+    """True for OS bookkeeping files that should be skipped silently."""
+    path = Path(path)
+    if path.name in METADATA_FILENAMES:
+        return True
+    # AppleDouble resource forks: "._original-name.jpg"
+    if path.name.startswith("._"):
+        return True
+    return any(part in METADATA_DIRECTORIES for part in path.parts)
+
+
 def iter_image_files(directory: Path, extensions: Sequence[str]) -> Iterator[Path]:
-    """Yield candidate image files under ``directory`` (recursively, sorted)."""
+    """Yield candidate image files under ``directory`` (recursively, sorted).
+
+    Operating-system metadata is skipped silently - see :func:`is_metadata_path`.
+    """
     directory = Path(directory)
     if not directory.exists():
         return
     allowed = {e.lower() for e in extensions}
     for path in sorted(directory.rglob("*")):
-        if path.is_file() and path.suffix.lower() in allowed:
+        if not path.is_file() or is_metadata_path(path):
+            continue
+        if path.suffix.lower() in allowed:
             yield path
 
 

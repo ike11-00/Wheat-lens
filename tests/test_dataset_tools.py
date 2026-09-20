@@ -174,3 +174,32 @@ def test_empty_raw_directory_is_handled(scratch_config, tmp_path):
     result = prepare(scratch_config, raw_root=raw)
     assert not result.manifest
     assert any("no usable images" in warning for warning in result.warnings)
+
+
+def test_macos_artefacts_are_not_reported_as_corrupt(scratch_config, tmp_path):
+    """A dataset copied or unzipped on macOS must validate cleanly.
+
+    Finder leaves .DS_Store in every folder and unzipping leaves an AppleDouble
+    "._name" sidecar beside every file. Before these were filtered, a real
+    dataset produced hundreds of spurious "corrupt image" entries that buried
+    the genuine findings.
+    """
+    raw = tmp_path / "raw"
+    _make_dataset(raw, scratch_config.class_dirs, per_class=4)
+
+    (raw / ".DS_Store").write_bytes(b"\x00\x00\x00\x01Bud1")
+    (raw / "__MACOSX").mkdir()
+    for directory in scratch_config.class_dirs:
+        (raw / directory / ".DS_Store").write_bytes(b"\x00\x00\x00\x01Bud1")
+        (raw / directory / "._placeholder.jpg").write_bytes(b"\x00\x05\x16\x07")
+
+    report = validate_dataset(scratch_config, raw, check_duplicates=False)
+    assert report.usable, report.errors
+    assert report.total_valid_images == 4 * scratch_config.num_classes
+    assert report.invalid_files == [], report.invalid_files
+    assert "__MACOSX" not in report.unexpected_directories
+
+    # Preparation must also ignore them rather than fail or copy them across.
+    result = prepare(scratch_config, raw_root=raw)
+    assert sum(result.totals.values()) == 4 * scratch_config.num_classes
+    assert not any(Path(e["destination"]).name.startswith("._") for e in result.manifest)
