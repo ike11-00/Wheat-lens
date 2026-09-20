@@ -29,30 +29,73 @@ repositories. Read the licensing subsection below before reusing it.
 
 ### Sources
 
-**1. WPLDD — Healthy, Brown Rust, Powdery Mildew (4,713 images)**
+Assembled 2026-09-20 from two public GitHub repositories, pinned to the commits
+below. Reproduce the whole thing with one command:
 
-* Repository: `cyb-personal/VWLM-for-Wheat-Disease-Identification-`
-* URL: https://github.com/cyb-personal/VWLM-for-Wheat-Disease-Identification-
-* Description: the authors' self-collected "Wheat Plant Leaf Disease Detection
-  Dataset", bundled with the code for an unpublished paper.
-* Folders used: `WPLDD/Healthy`, `WPLDD/Leaf rust` → Brown Rust,
-  `WPLDD/Powdery mildew`. The repository's `Blight` and `Septoria` folders were
-  not used.
-* Licence: **no LICENSE file.**
+```bash
+python -m src.data.download_dataset --fetch-github
+```
 
-**2. Stripe rust — Yellow Rust (208 images)**
+That clones both repositories into `~/.cache/leaf-lens-sources` (outside this
+project), verifies every source folder exists and holds the expected number of
+images, and only then copies them in. It refuses to write into a `data/raw`
+that already contains images unless you pass `--force`. Add `--dry-run` to
+verify without copying.
 
-* Repository: `Himanshu-Gupta3817/Wheat_plant_disease_detection`
-* URL: https://github.com/Himanshu-Gupta3817/Wheat_plant_disease_detection
-* Folders used: `Dataset/{train,test,valid}/*stripe_rust`. The repository's own
-  train/test/valid split was discarded and all images re-split by this
-  project's leakage-safe splitter.
-* Licence: **no LICENSE file.**
+**1. WPLDD — Healthy, Brown Rust, Powdery Mildew**
 
-Every file in `data/raw/` is prefixed with a source tag (`wpldd__`, `hg3817__`)
-so provenance stays traceable through every report the pipeline produces.
+| Field | Value |
+|---|---|
+| Repository | `cyb-personal/VWLM-for-Wheat-Disease-Identification-` |
+| URL | https://github.com/cyb-personal/VWLM-for-Wheat-Disease-Identification- |
+| Commit used | `e44e1727c6afa25ecb3c969c75700debb8ac893f` |
+| Commit date | 2025-09-27 |
+| Retrieved | 2026-09-20 |
+| Description | The authors' self-collected "Wheat Plant Leaf Disease Detection Dataset", bundled with the code for a paper that was under review at the time |
+| Licence | **No LICENSE file in the repository** |
 
-### Licensing
+**2. Stripe rust — Yellow Rust**
+
+| Field | Value |
+|---|---|
+| Repository | `Himanshu-Gupta3817/Wheat_plant_disease_detection` |
+| URL | https://github.com/Himanshu-Gupta3817/Wheat_plant_disease_detection |
+| Commit used | `27c0cdb2a936d2d09abace6f31ad770f4702ad28` |
+| Commit date | 2024-07-10 |
+| Retrieved | 2026-09-20 |
+| Licence | **No LICENSE file in the repository** |
+
+### Class mapping
+
+Exactly what was copied where. This is the mapping encoded in
+`GITHUB_CLASS_MAPPING` in `src/data/download_dataset.py`, so the table and the
+code cannot drift apart.
+
+| Source repository | Source folder | Destination class | Images |
+|---|---|---|---|
+| `cyb-personal/VWLM-…` | `WPLDD/Healthy` | `data/raw/Healthy/` | 1,545 |
+| `cyb-personal/VWLM-…` | `WPLDD/Leaf rust` | `data/raw/Brown_Rust/` | 1,642 |
+| `cyb-personal/VWLM-…` | `WPLDD/Powdery mildew` | `data/raw/Powdery_Mildew/` | 1,526 |
+| `Himanshu-Gupta3817/…` | `Dataset/train/Stripe_rust` | `data/raw/Yellow_Rust/` | 144 |
+| `Himanshu-Gupta3817/…` | `Dataset/test/stripe_rust` | `data/raw/Yellow_Rust/` | 37 |
+| `Himanshu-Gupta3817/…` | `Dataset/valid/stripe_rust` | `data/raw/Yellow_Rust/` | 27 |
+| | | **Total** | **4,921** |
+
+Notes on the mapping:
+
+* "Leaf rust" and "Brown Rust" are the same disease (*Puccinia triticina*);
+  "stripe rust" and "Yellow Rust" are the same disease (*Puccinia
+  striiformis*). The Leaf Lens names are the configured display names.
+* The WPLDD repository also contains `Blight` (1,717) and `Septoria` (1,320)
+  folders. Neither is a configured Leaf Lens class, so **neither was copied**.
+* The stripe-rust repository ships its own train/test/valid split. That split
+  was **discarded** and all 208 images re-split by this project's leakage-safe
+  splitter, so the source's split choices cannot leak into ours.
+* Every copied file is prefixed with its source tag (`wpldd__`, `hg3817__`), so
+  provenance stays visible in `data/raw`, in the split manifest, and in every
+  report the pipeline generates.
+
+### Licensing### Licensing
 
 **Neither source repository carries a LICENSE file**, which under default
 copyright means all rights are reserved. The larger of the two belongs to a
@@ -62,8 +105,12 @@ The images were used anyway, as an explicit decision by the project owner, for
 private experimental work. The consequences are recorded here rather than
 glossed over:
 
-* The images are **not redistributable**. They are excluded from version
-  control by `.gitignore` and must not be committed.
+* **The images are not redistributed through this Git repository.** `data/**`
+  is excluded by `.gitignore`; nothing under `data/` except `.gitkeep`
+  placeholders is tracked, and no image has ever been committed. Anyone
+  cloning this repository gets the code and an empty `data/` tree, and must
+  obtain the images themselves from the sources above.
+* The images are **not redistributable** by you either, absent permission.
 * No model trained on them should be published or used commercially without
   permission from the repository owners.
 * Anyone reproducing this work should seek permission, or substitute a

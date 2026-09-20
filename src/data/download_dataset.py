@@ -29,7 +29,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..utils.config import load_config
 from ..utils.helpers import get_logger, markdown_table
@@ -146,6 +146,180 @@ GITHUB_BUNDLED_DATASETS: List[Dict[str, str]] = [
         "licence": "NONE - all rights reserved",
     },
 ]
+
+
+# ---------------------------------------------------------------------------
+# Reproducible acquisition from the GitHub-bundled sources
+# ---------------------------------------------------------------------------
+# The exact mapping used to build the dataset this project was trained on.
+# Each entry is (repository key, path inside the repository, Leaf Lens class
+# directory, filename prefix). The prefix keeps provenance visible in every
+# filename, and therefore in every report the pipeline generates afterwards.
+GITHUB_SOURCE_REPOS: Dict[str, str] = {
+    "wpldd": "https://github.com/cyb-personal/VWLM-for-Wheat-Disease-Identification-.git",
+    "hg3817": "https://github.com/Himanshu-Gupta3817/Wheat_plant_disease_detection.git",
+}
+
+GITHUB_CLASS_MAPPING: List[Tuple[str, str, str, str]] = [
+    ("wpldd", "WPLDD/Healthy", "Healthy", "wpldd"),
+    ("wpldd", "WPLDD/Leaf rust", "Brown_Rust", "wpldd"),
+    ("wpldd", "WPLDD/Powdery mildew", "Powdery_Mildew", "wpldd"),
+    ("hg3817", "Dataset/train/Stripe_rust", "Yellow_Rust", "hg3817"),
+    ("hg3817", "Dataset/test/stripe_rust", "Yellow_Rust", "hg3817"),
+    ("hg3817", "Dataset/valid/stripe_rust", "Yellow_Rust", "hg3817"),
+]
+
+# Roughly what each source folder held when the mapping was written. Used only
+# to warn when a repository has changed under us - never to fabricate counts.
+EXPECTED_COUNTS: Dict[str, int] = {
+    "WPLDD/Healthy": 1545,
+    "WPLDD/Leaf rust": 1642,
+    "WPLDD/Powdery mildew": 1526,
+    "Dataset/train/Stripe_rust": 144,
+    "Dataset/test/stripe_rust": 37,
+    "Dataset/valid/stripe_rust": 27,
+}
+
+
+def clone_sources(workdir: Path) -> Dict[str, Path]:
+    """Clone the source repositories into ``workdir`` (outside the project).
+
+    Existing clones are reused rather than re-downloaded. Returns a mapping of
+    repository key to checkout path.
+    """
+    workdir.mkdir(parents=True, exist_ok=True)
+    checkouts: Dict[str, Path] = {}
+    for key, url in GITHUB_SOURCE_REPOS.items():
+        target = workdir / key
+        if (target / ".git").is_dir():
+            LOGGER.info("reusing existing clone: %s", target)
+            checkouts[key] = target
+            continue
+        LOGGER.info("cloning %s -> %s", url, target)
+        completed = subprocess.run(
+            ["git", "clone", "--depth", "1", url, str(target)],
+            check=False, capture_output=True, text=True)
+        if completed.returncode != 0:
+            for line in (completed.stderr or "").strip().splitlines()[-5:]:
+                LOGGER.error("  %s", line)
+            raise RuntimeError(f"could not clone {url}")
+        checkouts[key] = target
+    return checkouts
+
+
+def verify_sources(checkouts: Dict[str, Path], config) -> List[Dict[str, Any]]:
+    """Check every mapped source folder exists and holds images.
+
+    Returns one record per mapping entry. Raises nothing - the caller decides
+    whether the findings justify proceeding.
+    """
+    records: List[Dict[str, Any]] = []
+    for repo_key, relative, class_dir, prefix in GITHUB_CLASS_MAPPING:
+        root = checkouts.get(repo_key)
+        folder = (root / relative) if root else None
+        images = (list(iter_image_files(folder, config.supported_extensions))
+                  if folder and folder.is_dir() else [])
+        records.append({
+            "repo": repo_key,
+            "repo_url": GITHUB_SOURCE_REPOS[repo_key],
+            "source": relative,
+            "destination": class_dir,
+            "prefix": prefix,
+            "exists": bool(folder and folder.is_dir()),
+            "images": images,
+            "count": len(images),
+            "expected": EXPECTED_COUNTS.get(relative),
+        })
+    return records
+
+
+def fetch_github_dataset(config, workdir: Path, force: bool = False,
+                         dry_run: bool = False) -> int:
+    """Clone, verify and copy the documented sources into ``data/raw``.
+
+    Refuses to write into a destination class folder that already contains
+    images unless ``force`` is set, so an existing dataset is never silently
+    overwritten.
+    """
+    raw = config.path("raw_dir")
+    project = config.project_root
+
+    if workdir.resolve() == project.resolve() or project.resolve() in workdir.resolve().parents:
+        LOGGER.error("the working directory must be OUTSIDE the project: %s", workdir)
+        return 2
+
+    # --- step 1: what is already in data/raw? ---------------------------
+    occupied = {}
+    for spec in config.classes:
+        existing = list(iter_image_files(raw / spec.directory, config.supported_extensions))
+        if existing:
+            occupied[spec.directory] = len(existing)
+    if occupied and not force:
+        LOGGER.error("data/raw already contains images - refusing to overwrite:")
+        for name, count in occupied.items():
+            LOGGER.error("    data/raw/%s: %d images", name, count)
+        LOGGER.error("Move them aside, or pass --force to add to them.")
+        return 1
+
+    # --- step 2: clone --------------------------------------------------
+    LOGGER.info("source checkouts go to %s (outside the project)", workdir)
+    try:
+        checkouts = clone_sources(workdir)
+    except RuntimeError as exc:
+        LOGGER.error("%s", exc)
+        return 1
+
+    # --- step 3: verify BEFORE copying ----------------------------------
+    records = verify_sources(checkouts, config)
+    print("\nSource verification\n")
+    print(markdown_table(
+        ["Repository", "Source folder", "Destination class", "Images found", "Expected"],
+        [[r["repo"], f"`{r['source']}`", r["destination"],
+          r["count"] if r["exists"] else "FOLDER MISSING",
+          r["expected"] if r["expected"] is not None else "-"] for r in records]))
+
+    missing = [r for r in records if not r["exists"] or r["count"] == 0]
+    if missing:
+        LOGGER.error("")
+        LOGGER.error("%d source folder(s) are missing or empty - nothing was copied.", len(missing))
+        for r in missing:
+            LOGGER.error("    %s : %s", r["repo_url"], r["source"])
+        LOGGER.error("The upstream repositories may have been reorganised. Inspect the")
+        LOGGER.error("checkouts under %s and update GITHUB_CLASS_MAPPING.", workdir)
+        return 1
+
+    for r in records:
+        if r["expected"] and abs(r["count"] - r["expected"]) > max(5, r["expected"] * 0.1):
+            LOGGER.warning("'%s' holds %d images, expected about %d - the upstream "
+                           "repository may have changed", r["source"], r["count"], r["expected"])
+
+    if dry_run:
+        total = sum(r["count"] for r in records)
+        LOGGER.info("dry run: %d images would be copied into %s", total, raw)
+        return 0
+
+    # --- step 4: copy ---------------------------------------------------
+    totals: Dict[str, int] = {}
+    for r in records:
+        destination = raw / r["destination"]
+        destination.mkdir(parents=True, exist_ok=True)
+        for image in r["images"]:
+            shutil.copy2(image, destination / f"{r['prefix']}__{image.name}")
+        totals[r["destination"]] = totals.get(r["destination"], 0) + r["count"]
+        LOGGER.info("%-34s -> data/raw/%-16s %5d", r["source"], r["destination"], r["count"])
+
+    print("\nCopied into data/raw\n")
+    print(markdown_table(
+        ["Class", "Images"],
+        [[spec.name, totals.get(spec.directory, 0)] for spec in config.classes]
+        + [["**Total**", sum(totals.values())]]))
+    print(
+        f"\nSource checkouts left in {workdir} - they are outside the project and "
+        f"are not tracked by git. Delete them when you are done.\n"
+        f"\nNext:\n"
+        f"  python -m src.data.validate_dataset\n"
+    )
+    return 0
 
 
 def print_sources() -> None:
@@ -276,11 +450,24 @@ def main(argv: Optional[List[str]] = None) -> int:
                        help="download a Kaggle dataset with the official kaggle CLI")
     group.add_argument("--inspect", metavar="DIR",
                        help="list the image folders inside an already-downloaded dataset")
+    group.add_argument("--fetch-github", action="store_true",
+                       help="clone the documented GitHub sources, verify them and copy "
+                            "the images into data/raw using the recorded class mapping")
+    parser.add_argument("--config", default=None,
+                        help="alternative config file (as in every other module)")
     parser.add_argument("--dest", default="data/downloads",
-                        help="download destination (default: data/downloads)")
+                        help="download destination for --kaggle (default: data/downloads)")
+    parser.add_argument("--workdir", default=None,
+                        help="where --fetch-github clones the source repositories. "
+                             "Must be outside the project. "
+                             "Default: ~/.cache/leaf-lens-sources")
+    parser.add_argument("--force", action="store_true",
+                        help="--fetch-github: add to data/raw even if it already has images")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="--fetch-github: verify the sources but copy nothing")
     args = parser.parse_args(argv)
 
-    config = load_config()
+    config = load_config(args.config)
 
     if args.list:
         print_sources()
@@ -290,6 +477,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         path = Path(args.inspect)
         inspect_download(path if path.is_absolute() else config.project_root / path)
         return 0
+
+    if args.fetch_github:
+        workdir = (Path(args.workdir).expanduser() if args.workdir
+                   else Path.home() / ".cache" / "leaf-lens-sources")
+        return fetch_github_dataset(config, workdir, force=args.force,
+                                    dry_run=args.dry_run)
 
     dest = Path(args.dest)
     if not dest.is_absolute():
