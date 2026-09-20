@@ -6,12 +6,15 @@ import pytest
 
 from src.utils.config import ConfigError, load_config
 
-REQUIRED_CLASSES = ["Healthy", "Yellow Rust", "Karnal Bunt", "Brown Rust", "Powdery Mildew"]
+# The configured class list. Karnal Bunt was removed from the original
+# specification - it is a grain disease with no obtainable leaf imagery.
+# See docs/dataset.md; reinstating it is a config-only change.
+REQUIRED_CLASSES = ["Healthy", "Yellow Rust", "Brown Rust", "Powdery Mildew"]
 
 
 def test_required_classes_present_and_ordered(config):
     assert config.class_names == REQUIRED_CLASSES
-    assert config.num_classes == 5
+    assert config.num_classes == len(REQUIRED_CLASSES)
 
 
 def test_class_directories_are_filesystem_safe(config):
@@ -66,8 +69,12 @@ def test_overrides_are_applied():
     assert config.model_file.name == "model.keras"
 
 
-def test_extensible_to_a_sixth_class():
-    """Adding a class must not require code changes."""
+def test_extensible_to_an_extra_class():
+    """Adding a class must not require code changes.
+
+    This is also the path back to Karnal Bunt: append the entry, add the
+    folder, retrain. Nothing in the Python source hard-codes the class count.
+    """
     base = load_config()
     extended = load_config(overrides={
         "classes": [
@@ -76,9 +83,9 @@ def test_extensible_to_a_sixth_class():
             {"name": "Septoria", "directory": "Septoria", "aliases": ["septoria"]},
         ]
     })
-    assert extended.num_classes == 6
+    assert extended.num_classes == base.num_classes + 1
     assert extended.class_names[-1] == "Septoria"
-    assert extended.class_index("septoria") == 5
+    assert extended.class_index("septoria") == base.num_classes
 
 
 def test_duplicate_class_names_rejected():

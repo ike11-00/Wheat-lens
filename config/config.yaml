@@ -17,10 +17,20 @@ project:
 # `name`      - the label shown to the user.
 # `directory` - the folder name used on disk (data/raw/<directory>/ ...).
 #
-# Adding a sixth class is a two-step operation: append an entry here and add a
+# Adding a class is a two-step operation: append an entry here and add a
 # matching folder under data/raw/.  No Python file needs to be edited - the
 # number of output units, the confusion-matrix axes, the web UI bars and the
 # report tables are all derived from this list.
+#
+# Karnal Bunt was removed from the original five-class specification: it is a
+# GRAIN disease (Tilletia indica), so leaf-level imagery barely exists, and no
+# licensed source of it could be found.  To reinstate it, add back:
+#
+#   - name: "Karnal Bunt"
+#     directory: "Karnal_Bunt"
+#     aliases: ["karnal_bunt", "KarnalBunt", "partial_bunt", "karnal bunt"]
+#
+# and put images in data/raw/Karnal_Bunt/.  See docs/dataset.md.
 # ---------------------------------------------------------------------------
 classes:
   - name: "Healthy"
@@ -29,9 +39,6 @@ classes:
   - name: "Yellow Rust"
     directory: "Yellow_Rust"
     aliases: ["yellow_rust", "YellowRust", "stripe_rust", "Stripe_Rust", "yellow rust"]
-  - name: "Karnal Bunt"
-    directory: "Karnal_Bunt"
-    aliases: ["karnal_bunt", "KarnalBunt", "partial_bunt", "karnal bunt"]
   - name: "Brown Rust"
     directory: "Brown_Rust"
     aliases: ["brown_rust", "BrownRust", "leaf_rust", "Leaf_Rust", "brown rust"]

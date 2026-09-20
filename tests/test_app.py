@@ -106,7 +106,7 @@ def test_status_reports_loaded_model(client_with_model):
     payload = client_with_model.get("/api/status").get_json()
     assert payload["model_available"] is True
     assert payload["image_size"] == 96
-    assert len(payload["class_names"]) == 5
+    assert payload["class_names"] == load_config().class_names
 
 
 # --------------------------------------------------------------------------

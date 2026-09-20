@@ -62,14 +62,20 @@ there is no trained model, the system says so and refuses to guess.
 |---|---|
 | Healthy | `Healthy` |
 | Yellow Rust | `Yellow_Rust` |
-| Karnal Bunt | `Karnal_Bunt` |
 | Brown Rust | `Brown_Rust` |
 | Powdery Mildew | `Powdery_Mildew` |
 
-These are defined once, in `config/config.yaml`. Adding a sixth class means
-appending an entry there and creating the matching folder — the model head, the
-confusion matrix, every report table and the web UI all derive their class list
-from that single definition. No code changes.
+These are defined once, in `config/config.yaml`. Adding a class means appending
+an entry there and creating the matching folder — the model head, the confusion
+matrix, every report table and the web UI all derive their class list from that
+single definition. No code changes.
+
+**Karnal Bunt was in the original specification and has been removed.** It is a
+grain disease (*Tilletia indica*) whose signs appear on the kernel, not the
+leaf; a survey of every reachable public source found zero Karnal Bunt leaf
+images. Training a class with no data would have produced meaningless
+probabilities. `config/config.yaml` carries the exact entry to paste back if
+you obtain imagery. See [`docs/dataset.md`](docs/dataset.md).
 
 ## How the system works
 
@@ -146,7 +152,6 @@ python app/app.py                            # http://127.0.0.1:5000
 data/raw/
 ├── Healthy/
 ├── Yellow_Rust/
-├── Karnal_Bunt/
 ├── Brown_Rust/
 └── Powdery_Mildew/
 ```
@@ -165,9 +170,13 @@ by:
 python -m src.data.download_dataset --list
 ```
 
-Note that **Karnal Bunt is rarely present in public wheat-leaf datasets** — it
-is a grain disease with little leaf-level signal. `docs/dataset.md` explains
-your options honestly.
+**On licensing.** Several public GitHub repositories bundle real wheat-leaf
+images, and they are catalogued in [`docs/dataset.md`](docs/dataset.md) — but
+none of them carries a LICENSE file, so all rights are reserved by default. A
+GitHub search for wheat or plant-disease imagery under MIT, Apache-2.0,
+GPL-3.0, CC0, CC-BY-4.0 or CC-BY-SA-4.0 found nothing usable. The practical
+route to licensed data is Kaggle, Zenodo or the WFD site — check the licence
+stated on the page before you download.
 
 **Preparation:**
 
@@ -312,7 +321,7 @@ python app/app.py --host 0.0.0.0 --port 8080
 ```
 
 Upload a photograph → preview it → press **PREDICT** → see the predicted
-category, the confidence, and the probability across all five classes:
+category, the confidence, and the probability across every class:
 
 ```text
 RESULT
@@ -323,8 +332,7 @@ Confidence:             89.2%
 Probability Distribution:
   Healthy            2.1%
   Yellow Rust       89.2%
-  Karnal Bunt        3.7%
-  Brown Rust         4.1%
+  Brown Rust         7.8%
   Powdery Mildew     0.9%
 ```
 
@@ -487,17 +495,18 @@ A copy of the effective configuration is saved with every trained model as
 The short version — the full discussion is in
 [`docs/limitations.md`](docs/limitations.md):
 
-* **Five classes only, and no way to say "something else".** Any other
-  condition, crop or subject is still forced into one of the five, sometimes
-  confidently.
+* **Four classes only, and no way to say "something else".** Any other
+  condition, crop or subject is still forced into one of the four, sometimes
+  confidently. That includes Karnal Bunt, which the model cannot detect.
 * **The uncertainty check is a softmax heuristic, not a novelty detector.** An
   unflagged prediction is not a verified one.
 * **Confidence is not correctness.** Networks trained on small datasets are
   typically over-confident, and no calibration is applied.
 * **Test accuracy does not predict field accuracy.** Curated images are easier
   than real photographs; that is what realistic testing exists to measure.
-* **Karnal Bunt has little leaf-level signal** — it is a grain disease. Treat
-  that class with particular scepticism.
+* **Karnal Bunt is not detected at all** — it was removed for want of any
+  leaf imagery. A Karnal-Bunt-infected plant will be filed under one of the
+  four classes the model does know.
 * **Not a diagnostic tool.** Do not use it for treatment, certification or
   quarantine decisions. Karnal Bunt is a regulated pathogen in many
   jurisdictions and requires laboratory confirmation.
@@ -545,10 +554,11 @@ NumPy 2.x with TensorFlow 2.17. `pip install "numpy<2.0"`.
 
 The pipeline is finished; these are the inputs only you can supply.
 
-1. **A labelled wheat-leaf dataset** in `data/raw/<Class_Name>/`, covering all
-   five classes. This is the blocking item — nothing downstream can run without
-   it. Start with `python -m src.data.download_dataset --list` and read
-   `docs/dataset.md`, particularly the section on Karnal Bunt.
+1. **A labelled, licensed wheat-leaf dataset** in `data/raw/<Class_Name>/`,
+   covering the four configured classes. This is the blocking item — nothing
+   downstream can run without it. Run
+   `python -m src.data.download_dataset --list` for the catalogue of candidate
+   sources with their licence status, then read `docs/dataset.md`.
 2. **Run the training pipeline** once the images are in place (validate →
    prepare → split-report → train → evaluate → error analysis).
 3. **Field photographs for realistic testing** — your own pictures under

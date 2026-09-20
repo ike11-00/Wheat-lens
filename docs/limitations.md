@@ -26,18 +26,25 @@ seasons, cultivars and cameras. A model trained on them learns *those*
 conditions. Wheat in another region, another cultivar, at another growth stage
 or under different weather may look different enough to break it.
 
-**Class imbalance.** Rust images are plentiful in public data; Karnal Bunt is
-scarce. Inverse-frequency class weights stop the loss from ignoring a rare
-class, but they cannot create information that is not there. A class with 20
-images will be learned badly whatever the weighting.
+**Class imbalance.** Rust and healthy images are plentiful in public data;
+Yellow Rust specifically is much scarcer than Brown Rust. Inverse-frequency
+class weights stop the loss from ignoring a rare class, but they cannot create
+information that is not there. A class with 20 images will be learned badly
+whatever the weighting.
 
-**Karnal Bunt specifically.** *Tilletia indica* is a grain disease — the
-diagnostic signs are on the kernel, not the leaf. A leaf-image classifier has
-little genuine signal to learn for this class. If your Karnal Bunt images are
-in fact photographs of plants from infected fields rather than of the disease
-itself, the model will learn field or background characteristics and report
-them as Karnal Bunt. Treat any Karnal Bunt result with particular scepticism,
-and read `docs/dataset.md` for the alternatives.
+**Karnal Bunt is not offered at all.** It was removed from the original
+five-class specification because it is a grain disease (*Tilletia indica*) with
+essentially no leaf-level imagery, and no source of it could be found. This is
+a *limitation of the product*, not just of the data: a wheat plant with Karnal
+Bunt photographed at the leaf will be classified as one of the four categories
+the model does know, most likely Healthy. See `docs/dataset.md`.
+
+**Source confound when classes come from different datasets.** If the classes
+were assembled from more than one source, the network can learn which dataset
+an image came from rather than which disease it shows — camera, resolution,
+background and capture conditions all differ between collections. This inflates
+test accuracy and collapses on new photographs. Check `docs/dataset.md` for
+whether the data in use was mixed, and treat the affected classes accordingly.
 
 **Laboratory versus field images.** Curated datasets favour a single leaf,
 flat, well lit, against a plain background. Field photographs have soil, other
@@ -57,12 +64,13 @@ cannot detect a consistently mislabelled class.
 
 ## Model limitations
 
-**Only five categories, and no way to say "something else".** A softmax
+**Only four categories, and no way to say "something else".** A softmax
 classifier distributes probability over exactly the classes it was trained on.
 Presented with a sixth wheat disease, a nutrient deficiency, pest damage,
 herbicide injury, a different crop, or a photograph of a cat, the model still
-returns one of Healthy / Yellow Rust / Karnal Bunt / Brown Rust / Powdery
-Mildew — sometimes with high confidence.
+returns one of Healthy / Yellow Rust / Brown Rust / Powdery Mildew —
+sometimes with high confidence. Karnal Bunt is among the conditions it will
+silently misfile.
 
 **The uncertainty check is a heuristic, not a safety net.** Leaf Lens flags a
 prediction as uncertain when confidence is low, entropy is high, or the top two
@@ -126,7 +134,6 @@ Some of these categories are genuinely hard to separate from a photograph:
 * **Healthy and early disease** differ only by a few small lesions.
 * **Powdery Mildew and Healthy** differ by a thin whitish coating that faint
   lighting can hide.
-* **Karnal Bunt** has weak leaf-level signal, as above.
 
 A human plant pathologist uses more than one photograph: they look at the whole
 plant, the field pattern, the season, the weather history, and often a
@@ -147,8 +154,9 @@ laboratory test. The model sees 224×224 pixels.
 * Deciding whether to apply a fungicide, or which one.
 * Certifying a crop, a consignment or a field as disease-free.
 * Regulatory or quarantine decisions. Karnal Bunt in particular is a
-  **quarantine-regulated** pathogen in many jurisdictions; its status must be
-  determined by an accredited laboratory, never by a photograph.
+  **quarantine-regulated** pathogen in many jurisdictions — and this model
+  cannot detect it at all; its status must be determined by an accredited
+  laboratory, never by a photograph.
 * Any decision with financial, legal or food-safety consequences.
 
 Use it to learn how image classification works, to explore a dataset, and as a
@@ -158,7 +166,7 @@ qualified agronomist or plant pathologist look at the plant.
 ## Honest summary
 
 Leaf Lens is a complete, tested machine-learning pipeline with an untrained
-model. Once trained, it will be a five-class image classifier of the kind that
+model. Once trained, it will be a four-class image classifier of the kind that
 typically performs well on curated data and considerably worse in the field.
 The project's tooling is built to *measure* that gap — through unseen-image
 evaluation, error analysis and condition-based testing — rather than to hide

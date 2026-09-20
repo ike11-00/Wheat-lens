@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ project_name }} — Wheat Leaf Disease Classification</title>
-  <meta name="description" content="Experimental machine-learning prototype that classifies wheat leaf photographs into five categories.">
+  <meta name="description" content="Experimental machine-learning prototype that classifies wheat leaf photographs into a fixed set of disease categories.">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌾</text></svg>">
 </head>
@@ -124,11 +124,11 @@
       </p>
       <p class="muted small">
         The model can only choose between the {{ class_names|length }} categories it was
-        trained on ({{ class_names|join(', ') }}). Any other condition — a different disease,
-        a nutrient deficiency, pest damage, or a photograph that is not a wheat leaf — will
-        still be forced into one of these categories. Confidence is the model's estimated
-        probability for its own prediction; it is not a guarantee of correctness. Do not use
-        this tool as the basis for a treatment decision.
+        trained on ({{ class_names|join(', ') }}). Any other condition — another wheat
+        disease such as Karnal Bunt, a nutrient deficiency, pest damage, or a photograph
+        that is not a wheat leaf — will still be forced into one of these categories.
+        Confidence is the model's estimated probability for its own prediction; it is not a
+        guarantee of correctness. Do not use this tool as the basis for a treatment decision.
       </p>
     </section>
 

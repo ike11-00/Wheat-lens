@@ -79,7 +79,7 @@ Computes, on the test split:
 * overall accuracy
 * macro and weighted precision, recall and F1
 * per-class precision, recall, F1 and support
-* the full 5×5 confusion matrix (counts and row-normalised)
+* the full N×N confusion matrix (counts and row-normalised)
 * mean confidence, split by correct and incorrect predictions
 * accuracy above and below the confidence threshold, with coverage
 
@@ -98,7 +98,7 @@ Never quote training accuracy as the model's performance.
 
 ### Confusion matrix
 
-Rows are the actual class, columns the prediction, over all five classes. The
+Rows are the actual class, columns the prediction, over every configured class. The
 evaluator also lists the most frequent off-diagonal pairs with their share of
 the actual class.
 
@@ -107,7 +107,6 @@ have been observed here:
 
 * Yellow Rust vs Brown Rust (both rusts; pustule colour and arrangement differ)
 * Healthy vs early-stage disease (few or faint lesions)
-* Karnal Bunt vs anything (a grain disease with little leaf signal)
 * Powdery Mildew vs Healthy (thin mildew coating on a green leaf)
 
 **The reports only state a confusion when the test results actually show it.**

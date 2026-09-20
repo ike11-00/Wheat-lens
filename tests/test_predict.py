@@ -123,7 +123,9 @@ def test_uniform_distribution_is_flagged_uncertain(trained_stub):
 
 def test_confident_distribution_is_not_flagged(trained_stub):
     predictor = Predictor(load_config(), model_path=trained_stub)
-    confident = np.array([0.97, 0.01, 0.01, 0.005, 0.005])
+    confident = np.zeros(len(predictor.class_names))
+    confident[0] = 0.97
+    confident[1:] = 0.03 / max(1, len(confident) - 1)
     assert predictor._uncertainty(confident)["uncertain"] is False
 
 

@@ -29,15 +29,15 @@ Input  (224 x 224 x 3, float32, raw 0-255 pixels)
   │
   ├─ GlobalAveragePooling2D        -> 1280 features
   ├─ Dropout(0.2)
-  └─ Dense(5, softmax)             -> one probability per configured class
+  └─ Dense(n_classes, softmax)     -> one probability per configured class
 ```
 
-Parameter counts (224×224 input, five classes):
+Parameter counts (224×224 input, four classes):
 
 | Phase | Trainable | Non-trainable | Total |
 |---|---|---|---|
-| Phase 1 (backbone frozen) | 6,405 | 2,257,984 | 2,264,389 |
-| Phase 2 (top 40 layers unfrozen, BatchNorm kept frozen) | 1,669,765 | 594,624 | 2,264,389 |
+| Phase 1 (backbone frozen) | 5,124 | 2,257,984 | 2,263,108 |
+| Phase 2 (top 40 layers unfrozen, BatchNorm kept frozen) | 1,668,484 | 594,624 | 2,263,108 |
 
 ## Why MobileNetV2
 
@@ -139,15 +139,19 @@ read as a probability distribution, which the interface needs.
 
 ## Output classes
 
-Five softmax units, in the order defined by `config/config.yaml`:
+One softmax unit per configured class, in the order defined by
+`config/config.yaml`:
 
 | Index | Class |
 |---|---|
 | 0 | Healthy |
 | 1 | Yellow Rust |
-| 2 | Karnal Bunt |
-| 3 | Brown Rust |
-| 4 | Powdery Mildew |
+| 2 | Brown Rust |
+| 3 | Powdery Mildew |
+
+Karnal Bunt was removed from the original specification (a grain disease with no
+obtainable leaf imagery — see `docs/dataset.md`). Reinstating it is a config-only
+change and the head grows to five units automatically.
 
 The class order is written to `models/<version>/labels.json` at training time,
 and `Predictor` reads that file rather than today's config — so a model trained
@@ -173,7 +177,7 @@ model head from the reports.
 
 ### How the out-of-distribution check works
 
-Entropy is `-Σ p log p` divided by `log(5)`, so 0 means all the mass is on one
+Entropy is `-Σ p log p` divided by `log(n_classes)`, so 0 means all the mass is on one
 class and 1 means a uniform guess. The margin is `p(top1) - p(top2)`. Together
 they catch the two shapes of "the model does not know": mass spread everywhere,
 and mass split between two candidates.
@@ -185,7 +189,7 @@ always produces a distribution over exactly the classes it was trained on, and
 neural networks are routinely *confidently wrong* on inputs unlike anything
 they have seen. Specifically, this check:
 
-* will not reliably detect a sixth wheat disease,
+* will not reliably detect an untrained wheat disease (including Karnal Bunt),
 * will not reliably detect a different crop, a nutrient deficiency or pest
   damage,
 * will not reliably detect a photograph that is not a leaf at all.

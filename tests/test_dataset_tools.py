@@ -56,10 +56,13 @@ def test_full_dataset_is_usable_and_counted(scratch_config, tmp_path):
     raw = tmp_path / "raw"
     _make_dataset(raw, scratch_config.class_dirs, per_class=6)
     report = validate_dataset(scratch_config, raw)
+    n_classes = scratch_config.num_classes
     assert report.usable, report.errors
-    assert report.total_valid_images == 30
+    assert report.total_valid_images == 6 * n_classes
     assert all(entry.valid_images == 6 for entry in report.per_class)
-    assert all(abs(entry.percentage_of_valid - 20.0) < 0.01 for entry in report.per_class)
+    expected_share = 100.0 / n_classes
+    assert all(abs(entry.percentage_of_valid - expected_share) < 0.01
+               for entry in report.per_class)
 
 
 def test_corrupt_and_unsupported_files_are_reported(scratch_config, tmp_path):

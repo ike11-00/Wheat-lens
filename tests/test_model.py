@@ -21,14 +21,15 @@ def small_config():
 
 def test_model_has_one_output_per_configured_class(small_config):
     model = build_model(small_config)
-    assert model.output_shape[-1] == small_config.num_classes == 5
+    assert model.output_shape[-1] == small_config.num_classes
+    assert small_config.num_classes >= 2
 
 
 def test_model_accepts_raw_0_255_pixels_and_returns_probabilities(small_config):
     model = build_model(small_config)
     batch = np.random.randint(0, 256, (3, 96, 96, 3)).astype("float32")
     probabilities = model(batch, training=False).numpy()
-    assert probabilities.shape == (3, 5)
+    assert probabilities.shape == (3, small_config.num_classes)
     assert np.allclose(probabilities.sum(axis=1), 1.0, atol=1e-5)
     assert (probabilities >= 0).all()
 
