@@ -115,7 +115,9 @@ Prediction + confidence + probability distribution
 
 ## Installation
 
-Requires **Python 3.11** (3.10–3.12 should work).
+**Python 3.10 – 3.13.** Not 3.14 yet: no TensorFlow release ships a Python
+3.14 wheel. Python 3.13 needs TensorFlow ≥ 2.20, which `requirements.txt`
+resolves automatically.
 
 ```bash
 git clone <this repository>
@@ -552,7 +554,16 @@ Expected on CPU. Reduce `data.image_size` to 160 or 96, lower `epochs`, or set
 `training.fine_tune.enabled: false` for a quick baseline.
 
 **`ImportError: numpy.core.multiarray failed to import`**
-NumPy 2.x with TensorFlow 2.17. `pip install "numpy<2.0"`.
+NumPy 2.x paired with TensorFlow 2.17, which requires NumPy < 2. Either upgrade
+TensorFlow (`pip install -U "tensorflow-cpu>=2.20"`) or downgrade NumPy
+(`pip install "numpy<2.0"`). `requirements.txt` no longer pins NumPy, so a
+clean install picks a compatible pair on its own.
+
+**`ERROR: Could not find a version that satisfies the requirement tensorflow-cpu`**
+You are probably on Python 3.14, for which TensorFlow has no wheel yet. Install
+Python 3.13 or earlier — `pyenv install 3.13`, `conda create -n leaflens
+python=3.13`, or the archived installers at python.org, which keep every
+release. All other dependencies in this project already support 3.14.
 
 ## What you need to provide
 

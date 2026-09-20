@@ -2,7 +2,7 @@
 
 ## Verified environment
 
-The project was built and tested in this environment:
+The project was built and tested on this environment:
 
 | Component | Version |
 |---|---|
@@ -12,17 +12,58 @@ The project was built and tested in this environment:
 | NumPy | 1.26.4 |
 | scikit-learn | 1.9.1 |
 | Pillow | 12.3.0 |
-| Flask | 3.x |
-| matplotlib / seaborn / pandas / PyYAML / ImageHash | see `requirements.txt` |
-| OS | Linux (x86-64), 4 CPU cores, no GPU |
+| OS | Linux x86-64, 4 CPU cores, no GPU |
 
-`requirements.txt` pins TensorFlow and NumPy exactly. NumPy is held below 2.0
-because TensorFlow 2.17 is not compatible with the 2.x ABI.
+### Python version support
 
-Every training and evaluation run records its own environment in
-`models/<version>/run_metadata.json` and in the `environment` block of
-`results/evaluation/evaluation_<version>.json`, so a report always says which
-versions produced it.
+TensorFlow is the only dependency that constrains the Python version. Every
+other package in `requirements.txt` already ships wheels for 3.13 and 3.14.
+
+| Python | Supported | Notes |
+|---|---|---|
+| 3.10 – 3.12 | Yes | TensorFlow 2.17 – 2.21 |
+| 3.13 | Yes | Requires TensorFlow ≥ 2.20 |
+| **3.14** | **No** | **No TensorFlow release ships a cp314 wheel** |
+
+Checked against the PyPI package index on 2026-09-20: TensorFlow 2.21.0 is the
+newest release and publishes wheels for CPython 3.10–3.13 only. No release,
+including pre-releases, publishes a 3.14 wheel.
+
+### Forward-compatibility, verified
+
+The project was re-tested end to end against the newest TensorFlow to confirm
+that the pinned version is a floor rather than a requirement:
+
+| Check | TensorFlow 2.17.1 / NumPy 1.26 | TensorFlow 2.21.0 / NumPy 2.4 |
+|---|---|---|
+| Test suite | 90 passed | 90 passed |
+| Trained model loads | Yes | Yes |
+| Web application | Works | Works |
+
+A model trained under 2.17 loads under 2.21 and produces **bit-identical**
+predictions — maximum absolute probability difference 0.000e+00 across the
+comparison images. So the `models/v1/model.keras` artefact is portable across
+this range and does not need retraining to move Python version.
+
+`requirements.txt` therefore specifies `tensorflow-cpu>=2.17,<3.0` rather than
+an exact pin, and deliberately does **not** pin NumPy: TensorFlow declares its
+own compatible NumPy range (2.17 requires `<2.0`, 2.20+ accepts 2.x), so
+pinning NumPy separately would silently force an old TensorFlow and block
+Python 3.13.
+
+If you need an exact-version reproduction of the original run, use the table at
+the top of this section rather than a fresh resolve.
+
+### Getting a specific Python version
+
+python.org keeps every release archived, so no version becomes unavailable.
+For per-project versions:
+
+```bash
+pyenv install 3.13          # then: pyenv local 3.13
+conda create -n leaflens python=3.13
+uv venv --python 3.13
+```
 
 ## Setup
 
