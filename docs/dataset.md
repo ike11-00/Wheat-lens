@@ -2,44 +2,125 @@
 
 ## Status
 
-**No dataset is present in this repository.** `data/raw/` is empty apart from
-`.gitkeep` files, and no images were downloaded while the project was built.
+**A dataset is present.** It was assembled on 2026-09-20 from two public GitHub
+repositories. Read the licensing subsection below before reusing it.
 
-Every tool described below has been written and tested against synthetic
-fixtures, so the pipeline runs the moment real images are added. Until then,
-the following are all **Not yet provided**:
-
-| Item | Status |
+| Item | Value |
 |---|---|
-| Dataset name | Not yet provided |
-| Dataset source | Not yet provided |
-| Dataset URL | Not yet provided |
-| Licence | Not yet provided |
-| Total images | Not yet provided |
-| Images per class | Not yet provided |
-| Licence of the data used | Not yet provided |
-| Train / validation / test counts | Not yet provided |
-| Duplicates found | Not yet provided |
-| Class imbalance | Not yet provided |
+| Sources | 2 public GitHub repositories (see below) |
+| Total images | 4,921 |
+| Classes | 4 (Healthy, Yellow Rust, Brown Rust, Powdery Mildew) |
+| Train / validation / test | 3,687 / 617 / 617 (74.9% / 12.5% / 12.5%) |
+| Corrupt or unusable files | 0 |
+| Byte-identical duplicates | 0 |
+| Near-duplicate pairs | 2 (kept within one split each) |
+| Cross-split leakage | none detected |
+| Class imbalance | **7.89 : 1** (Brown Rust 1,642 vs Yellow Rust 208) |
+| Licence | **None. See "Licensing" below.** |
 
-Fill this table in from the generated reports once you have added images:
-`results/dataset/validation_raw.md` and `results/dataset/prepare_report.md`.
+### Per class
 
-## Why no dataset was downloaded
+| Class | Images | Share | Source | Median resolution |
+|---|---|---|---|---|
+| Healthy | 1,545 | 31.4% | WPLDD | 0.16 MP (400×400) |
+| Yellow Rust | 208 | 4.2% | **different repo** | **24.0 MP** |
+| Brown Rust | 1,642 | 33.4% | WPLDD | 0.16 MP (328×328) |
+| Powdery Mildew | 1,526 | 31.0% | WPLDD | 0.16 MP (388×388) |
 
-The environment this project was built in has a restricted outbound network
-policy. PyPI and GitHub are reachable; the dataset hosts are not. Concretely,
-the egress gateway answered `403` to:
+### Sources
+
+**1. WPLDD — Healthy, Brown Rust, Powdery Mildew (4,713 images)**
+
+* Repository: `cyb-personal/VWLM-for-Wheat-Disease-Identification-`
+* URL: https://github.com/cyb-personal/VWLM-for-Wheat-Disease-Identification-
+* Description: the authors' self-collected "Wheat Plant Leaf Disease Detection
+  Dataset", bundled with the code for an unpublished paper.
+* Folders used: `WPLDD/Healthy`, `WPLDD/Leaf rust` → Brown Rust,
+  `WPLDD/Powdery mildew`. The repository's `Blight` and `Septoria` folders were
+  not used.
+* Licence: **no LICENSE file.**
+
+**2. Stripe rust — Yellow Rust (208 images)**
+
+* Repository: `Himanshu-Gupta3817/Wheat_plant_disease_detection`
+* URL: https://github.com/Himanshu-Gupta3817/Wheat_plant_disease_detection
+* Folders used: `Dataset/{train,test,valid}/*stripe_rust`. The repository's own
+  train/test/valid split was discarded and all images re-split by this
+  project's leakage-safe splitter.
+* Licence: **no LICENSE file.**
+
+Every file in `data/raw/` is prefixed with a source tag (`wpldd__`, `hg3817__`)
+so provenance stays traceable through every report the pipeline produces.
+
+### Licensing
+
+**Neither source repository carries a LICENSE file**, which under default
+copyright means all rights are reserved. The larger of the two belongs to a
+paper that was still under review when the data was taken.
+
+The images were used anyway, as an explicit decision by the project owner, for
+private experimental work. The consequences are recorded here rather than
+glossed over:
+
+* The images are **not redistributable**. They are excluded from version
+  control by `.gitignore` and must not be committed.
+* No model trained on them should be published or used commercially without
+  permission from the repository owners.
+* Anyone reproducing this work should seek permission, or substitute a
+  properly licensed dataset.
+
+A search for openly licensed wheat or plant-disease imagery (MIT, Apache-2.0,
+GPL-3.0, CC0, CC-BY-4.0, CC-BY-SA-4.0) found nothing usable on any reachable
+host; the licensed agricultural datasets on GitHub are rice images and crop
+price tables. The Kaggle / Zenodo table below remains the route to licensed
+data for anyone who can reach those hosts.
+
+### The Yellow Rust source confound — read this before quoting any metric
+
+Yellow Rust is the one class that came from a different collection, and the two
+collections are **perfectly separable on resolution alone**:
+
+| Class | Min | Median | Max |
+|---|---|---|---|
+| Healthy | 0.16 MP | 0.16 MP | 0.16 MP |
+| Brown Rust | 0.004 MP | 0.16 MP | 0.16 MP |
+| Powdery Mildew | 0.004 MP | 0.16 MP | 0.16 MP |
+| **Yellow Rust** | **3.72 MP** | **24.0 MP** | **24.0 MP** |
+
+There is **no overlap**. The rule "more than 1 megapixel ⇒ Yellow Rust" would
+be 100% accurate on this dataset. Images are resized to 224×224 before the
+network sees them, so raw pixel count is not directly visible — but
+downsampling a 24 MP photograph produces a very different sharpness and texture
+signature from a 400×400 image, and that difference is trivially learnable.
+
+**Expect Yellow Rust metrics to look excellent and mean nothing.** The class is
+also the smallest by a factor of eight, so class weighting amplifies whatever
+shortcut exists.
+
+`src/testing/confound_test.py` measures this rather than assuming it: it
+re-runs the test split with every image normalised to a common resolution and
+re-encoded, and reports which classes keep their recall and which collapse. Run
+it alongside the evaluation and read the two together.
+
+## Network restrictions encountered (historical)
+
+The environment this project was built in runs at the **Trusted** network
+access level, which allows package registries and GitHub but not the dataset
+hosts. This is why the data above came from GitHub rather than from Kaggle or
+Zenodo. The egress gateway answered `403` to:
 
 * `www.kaggle.com`
 * `huggingface.co`
 * `data.mendeley.com`
 * `zenodo.org`
 
-Downloading images from elsewhere would have meant scraping arbitrary web
-images of unknown provenance and unknown labels, which is worse than having no
-dataset: it produces a model that appears to work and cannot be trusted. So
-nothing was downloaded.
+To reach those hosts, an environment's network access can be set to **Custom**
+with the required domains added (claude.ai/code → the cloud icon above the
+message box → the environment's gear → **Network access**). A new session is
+needed for the change to take effect.
+
+No images were ever scraped from arbitrary web pages: everything used came from
+a named repository with a recorded URL.
 
 ## Required classes
 

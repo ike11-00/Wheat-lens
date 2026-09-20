@@ -80,8 +80,17 @@ data:
   # both training and test data.  See docs/dataset.md.
   deduplication:
     enabled: true
-    hash_size: 8
-    hash_threshold: 5             # 0 = byte-identical perceptual hash only
+    # Calibrated against the actual corpus rather than guessed. With
+    # hash_size 8 / threshold 5 (a 64-bit hash, 7.8% of bits) the hash
+    # over-merges: on small, uniform-background leaf photographs a single
+    # "duplicate group" swallowed 498 of 1545 Healthy images (32% of the
+    # class), which would have dumped a third of a class into one split.
+    # hash_size 16 (a 256-bit hash) at threshold 5 is ~2% of bits and yields
+    # a largest group of 2 - genuine duplicate pairs. Re-check this if you
+    # change datasets: tests/ has no fixture for it, but
+    # `validate_dataset` reports the group count and the largest groups.
+    hash_size: 16
+    hash_threshold: 5             # ~2% of 256 bits; 0 = identical hash only
     drop_exact_duplicates: true   # keep one representative of identical files
 
   # Warn when the largest class is more than this many times the smallest.
