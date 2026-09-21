@@ -22,8 +22,12 @@ model's prediction.
 >
 > The cause is a dataset confound — three classes are studio photographs, one
 > is field photography — documented with causal evidence in
-> [`docs/v2_experiment.md`](docs/v2_experiment.md). A v2 experiment to break
-> the confound is **built but not yet run**.
+> [`docs/v2_experiment.md`](docs/v2_experiment.md).
+>
+> **Model v2 fixes most of it.** Background augmentation lifted background
+> robustness from **21.5% to 95.3%** for 0.32 pp of headline test accuracy,
+> and the gain survives compositing styles v2 never trained on. Field
+> photographs are still needed to confirm it transfers to real images.
 
 ---
 

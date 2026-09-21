@@ -2,9 +2,55 @@
 
 ## Status
 
-**Infrastructure is built. No v2 model has been trained.** `models/v1/model.keras`
-and every v1 result are unchanged. Every figure below for v1 is measured; every
-statement about v2 is a hypothesis awaiting a run.
+**v2 has been trained and measured. The experiment worked.** `models/v1/model.keras`
+is unchanged (md5 `2ae53135f16d3de4d77dd61833fe2bad`) and every v1 result is
+preserved. All figures below are measured.
+
+### Result
+
+| Metric | v1 | v2 |
+|---|---|---|
+| Test accuracy (identical images) | 100.00% | 99.68% |
+| **Background robustness** | **21.5%** | **95.3%** |
+| Accuracy lost to background | 78.5 pp | **4.5 pp** |
+| Composites called Yellow Rust | 71.8% | **0.7%** |
+| Confidence while wrong | 89.0% | 73.8% |
+
+Per class, accuracy on background-replaced test images:
+
+| Class | v1 | v2 | Change |
+|---|---|---|---|
+| Healthy | 7.8% | 95.1% | **+87.3 pp** |
+| Brown Rust | 33.9% | 94.8% | +60.9 pp |
+| Powdery Mildew | 22.1% | 96.1% | +73.9 pp |
+
+v2 gave up 0.32 pp of headline test accuracy — two errors in 617 — and gained
+73.8 points of background robustness. That is the trade the experiment was
+designed to make.
+
+### The result survives its own most serious objection
+
+v2 trained on composites produced by the same function the robustness
+evaluation uses. The evaluation is therefore partly in-distribution for v2 and
+fully out-of-distribution for v1, which flatters v2. The documented risk was
+that v2 had learned "this is a composite, look at the leaf" rather than "ignore
+the background".
+
+Tested by evaluating both models under compositing styles v2 never trained on -
+feathered boundaries and leaf scales outside the augmentation range:
+
+| Compositing style | v1 | v2 |
+|---|---|---|
+| As trained (hard edge, scale 0.45–0.95) | 7.3% | 96.0% |
+| Feathered edge, 4 px blur | 3.3% | 90.0% |
+| Feathered edge, 12 px blur | 2.7% | **84.7%** |
+| Hard edge, tiny leaf (scale 0.15–0.30) | 3.3% | 93.3% |
+| Feathered 8 px + tiny leaf | 3.3% | 92.0% |
+
+v2 degrades from 96% to 84.7% under the most unfamiliar style, so **some** of
+its robustness is specific to the compositing it saw. The great majority is
+not: it holds above 84% everywhere, while v1 never exceeds 7.3%. The
+conclusion - that v2 is substantially less background-dependent - survives.
 
 ## The v1 confound
 
