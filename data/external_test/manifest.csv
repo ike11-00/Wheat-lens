@@ -1,1 +1,6 @@
 file,true_class,lighting,background,distance,angle,quality,notes
+ext_01.jpg,Brown Rust,bright direct sun,field foliage,close-up,side-on,high (1123x2000),"batch 1 of user's set, position 1. Scattered round pustules, no striping - textbook leaf rust presentation."
+ext_02.jpg,Brown Rust,diffuse,leaf only,macro,side-on,very low (168x158),"batch 1, position 2. 168x158 px - upscaled 1.4x to reach the model's 224px input, so detail is interpolated, not photographed."
+ext_03.jpg,Brown Rust,diffuse,field foliage,close-up,side-on,very low (159x300),"batch 1, position 3. Also below the model's input resolution on the short edge."
+ext_04.jpg,Brown Rust,bright direct sun,field foliage,close-up,side-on,low (335x597),"batch 1, position 4. claude-observation: subject is a STEM/culm, not a leaf blade, and the pustules are erupting through a torn epidermis - that presentation is characteristic of stem rust (Puccinia graminis), which is not one of the four configured classes. Flagged for your confirmation; label left as you gave it."
+ext_05.jpg,Brown Rust,soft / studio-like,blurred field bokeh,close-up,side-on,medium (554x554),"batch 1, position 5. claude-observation: pustules sit in distinct rows running parallel to the veins, which is the stripe-rust pattern rather than leaf rust's random scatter. Flagged for your confirmation; label left as you gave it."
