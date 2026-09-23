@@ -28,6 +28,14 @@ model's prediction.
 > robustness from **21.5% to 95.3%** for 0.32 pp of headline test accuracy,
 > and the gain survives compositing styles v2 never trained on. Field
 > photographs are still needed to confirm it transfers to real images.
+>
+> **It was not enough.** On 20 real-world photographs supplied by the project
+> owner, v2 scored 9/20, with Brown Rust at 0/5. The remaining suspect is that
+> three of four classes come from a single collection, so v3 proposes drawing
+> every class from several independent sources. The dataset decision, what it
+> can and cannot test, and the conditions under which v3 counts as a failure
+> are in [`docs/v3_experiment.md`](docs/v3_experiment.md). **v3 is a proposal;
+> nothing has been trained.**
 
 ---
 
@@ -468,6 +476,7 @@ Wheat-lens/
 ├── tests/                       pytest suite + synthetic fixture generator
 └── docs/
     ├── dataset.md   model.md   testing.md   limitations.md   reproducibility.md
+    └── v2_experiment.md   v3_experiment.md
 ```
 
 ## Configuration

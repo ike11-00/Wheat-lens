@@ -1,0 +1,6 @@
+# The photographs are yours and are not redistributed through this repository.
+# The manifest and this README are tracked so the protocol is reproducible.
+*
+!.gitignore
+!README.md
+!manifest.csv

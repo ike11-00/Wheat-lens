@@ -95,7 +95,7 @@ Notes on the mapping:
   provenance stays visible in `data/raw`, in the split manifest, and in every
   report the pipeline generates.
 
-### Licensing### Licensing
+### Licensing
 
 **Neither source repository carries a LICENSE file**, which under default
 copyright means all rights are reserved. The larger of the two belongs to a

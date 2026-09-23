@@ -95,6 +95,20 @@ the pipeline can detect this; only deliberately varied photography can.
 near-duplicate images that carry different labels (a detectable conflict) but
 cannot detect a consistently mislabelled class.
 
+**Licensing — this model is not distributable.** The imagery comes from GitHub
+repositories that, with one exception, carry **no LICENSE file at all**, which
+under default copyright means all rights reserved. The project owner instructed
+it to proceed on that basis for a personal, non-distributed build, and it does;
+the position is recorded rather than glossed. The one exception is
+`kaliprogramer/Wheat-Plant-Disease-Classification-using-Deep-Learning-ResNet18`,
+which carries an MIT licence — though MIT covers "the Software" and the
+repository does not state whether the author meant it to cover the bundled
+images, nor where those images originally came from. Consequences: do not
+redistribute the dataset, the trained weights, or anything derived from them,
+and do not use this model commercially. `docs/dataset.md` and
+`src/data/sources_v3.py` record the licence status of every source
+individually.
+
 ## Model limitations
 
 **Only four categories, and no way to say "something else".** A softmax
