@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------------------
+# Leaf Lens - model V3-full: the source-diversity experiment, every clean image
+#
+# Only the keys that differ from config/config.yaml; deep-merged on top of it.
+#
+# THE SPLITS ARE BUILT BY src.data.build_v3, NOT BY prepare_dataset.
+#     python -m src.data.build_v3 --sources <clone-dir>     # builds BOTH variants
+#     python -m src.data.build_v3 --verify-only             # before every training run
+# See config/model_v3_balanced.yaml for why prepare_dataset must not be run
+# with this config.
+#
+# This variant uses the whole clean pool - 7,010 images after exact and
+# source-family de-duplication - with nothing duplicated to force balance and
+# nothing valid discarded to force it either. Imbalance is handled in the loss
+# with inverse-frequency class weights computed from the TRAINING split only
+# (src.model.datasets.compute_class_weights, called from src/model/train.py
+# with the training labels).
+#
+# v3_balanced is a subset of this dataset, split for split, so both models can
+# be compared on this variant's test set with no leakage in either direction.
+# ---------------------------------------------------------------------------
+
+model:
+  version: "v3_full"
+
+paths:
+  raw_dir: "data/v3_raw"
+  train_dir: "data/v3_full/train"
+  validation_dir: "data/v3_full/validation"
+  test_dir: "data/v3_full/test"
+
+data:
+  background_augmentation:
+    enabled: true
+    classes: ["Healthy", "Brown Rust", "Powdery Mildew"]
+    harvest_from: "Yellow Rust"
+    background_sources: ["harvested", "procedural"]
+    copies_per_image: 1
+    seed: 42
+    leaf_scale: [0.45, 0.95]
+    brightness_threshold: 0.70
+    saturation_threshold: 0.35
+    min_leaf_fraction: 0.04
+    jpeg_quality: 92
+
+training:
+  use_class_weights: true
+
+v3:
+  variant: "full"
+  manifest: "data/v3_manifest.csv"

@@ -27,6 +27,15 @@ opportunity:
 
 That asymmetry is the central constraint on V3 and is documented rather than
 worked around. See docs/v3_experiment.md.
+
+Status after the survey and the overlap check (2026-09-23)
+---------------------------------------------------------
+The paragraph above describes the position before ``kiran`` was found. It
+added a second, independent source for Yellow Rust (208 -> 447) and for
+Powdery Mildew. The cross-source overlap check (docs/v3_source_overlap.md) then
+showed that ``mubashar`` is largely a re-encoding of ``suhas``, so the two are
+declared one **source family** below. Source families - not repositories - are
+what the V3 sampling balances across and what per-source accuracy reports on.
 """
 
 from __future__ import annotations
@@ -66,6 +75,19 @@ class DatasetSource:
     folders: List[SourceFolder] = field(default_factory=list)
     use: bool = True          # False => surveyed but deliberately not used
     exclusion_reason: str = ""
+    # Upstream commit the clone was taken at. Every image's SHA-256 is also
+    # recorded in data/v3_manifest.csv, so content can be verified on rebuild.
+    commit: str = ""
+    # Source family. Repositories that redistribute the same underlying
+    # photographs belong to one family; "" means the source is its own family.
+    # A member source whose family is another key is de-duplicated against
+    # that family's primary source (see src/data/build_v3.py).
+    family: str = ""
+    family_note: str = ""
+
+    @property
+    def family_key(self) -> str:
+        return self.family or self.key
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +101,7 @@ class DatasetSource:
 SOURCES: List[DatasetSource] = [
     DatasetSource(
         key="wpldd",
+        commit="e44e1727c6afa25ecb3c969c75700debb8ac893f",
         name="WPLDD (VWLM wheat leaf disease dataset)",
         url="https://github.com/cyb-personal/VWLM-for-Wheat-Disease-Identification-",
         clone_url="https://github.com/cyb-personal/VWLM-for-Wheat-Disease-Identification-.git",
@@ -98,6 +121,7 @@ SOURCES: List[DatasetSource] = [
     ),
     DatasetSource(
         key="hg3817",
+        commit="27c0cdb2a936d2d09abace6f31ad770f4702ad28",
         name="Wheat plant disease detection (Himanshu-Gupta3817)",
         url="https://github.com/Himanshu-Gupta3817/Wheat_plant_disease_detection",
         clone_url="https://github.com/Himanshu-Gupta3817/Wheat_plant_disease_detection.git",
@@ -118,6 +142,7 @@ SOURCES: List[DatasetSource] = [
     ),
     DatasetSource(
         key="suhas",
+        commit="3a1d68603916dfee0f283dd3f4a961df7951f3fd",
         name="Wheat Disease Detection (suhasmaddali)",
         url="https://github.com/suhasmaddali/Wheat-Disease-Detection-",
         clone_url="https://github.com/suhasmaddali/Wheat-Disease-Detection-.git",
@@ -136,6 +161,16 @@ SOURCES: List[DatasetSource] = [
     ),
     DatasetSource(
         key="mubashar",
+        commit="26a8d37ef0f4cd30128a388fbf6429922b787129",
+        family="suhas",
+        family_note=(
+            "Measured 2026-09-23 (docs/v3_source_overlap.md): after exact de-duplication, "
+            "200 of 318 Brown Rust (62.9%) and 67 of 126 Healthy (53.2%) images are "
+            "perceptual-hash near-duplicates of suhas images - different bytes, same "
+            "photographs. Treated as part of the suhas family: those 267 are removed and "
+            "the 177 genuinely unique images (118 Brown Rust, 59 Healthy) are kept. "
+            "Decision approved by the project owner."
+        ),
         name="WheatDiseaseDataset (mubashar1030)",
         url="https://github.com/mubashar1030/WheatDiseaseDataset",
         clone_url="https://github.com/mubashar1030/WheatDiseaseDataset.git",
@@ -153,6 +188,7 @@ SOURCES: List[DatasetSource] = [
     ),
     DatasetSource(
         key="kiran",
+        commit="f4b7cf7c5ac4be3d1d44afb01d0084806e24230b",
         name="Wheat Plant Disease Classification ResNet18 (kaliprogramer / Kiran K.C)",
         url="https://github.com/kaliprogramer/Wheat-Plant-Disease-Classification-using-Deep-Learning-ResNet18",
         clone_url="https://github.com/kaliprogramer/Wheat-Plant-Disease-Classification-using-Deep-Learning-ResNet18.git",
@@ -275,6 +311,16 @@ SOURCES: List[DatasetSource] = [
 
 def active_sources() -> List[DatasetSource]:
     return [s for s in SOURCES if s.use]
+
+
+def source_families() -> Dict[str, List[str]]:
+    """Family key -> member source keys, primary (key == family) first."""
+    families: Dict[str, List[str]] = {}
+    for source in active_sources():
+        families.setdefault(source.family_key, []).append(source.key)
+    for family, members in families.items():
+        members.sort(key=lambda key: (key != family, key))
+    return families
 
 
 def excluded_sources() -> List[DatasetSource]:

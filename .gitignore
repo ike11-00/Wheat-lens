@@ -24,6 +24,12 @@ data/validation/**
 data/test/**
 data/realistic/**
 data/downloads/**
+# V3: the clean pool and both variants' splits. Rebuilt from the source
+# repositories by `python -m src.data.build_v3`; data/v3_manifest.csv (tracked)
+# records every file with its SHA-256, so a rebuild can be verified exactly.
+data/v3_raw/**
+data/v3_full/**
+data/v3_balanced/**
 !data/**/.gitkeep
 !data/realistic/manifest.csv
 

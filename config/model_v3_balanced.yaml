@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------------------
+# Leaf Lens - model V3-balanced: the source-diversity experiment, 3:1 capped
+#
+# Only the keys that differ from config/config.yaml; deep-merged on top of it.
+#
+# THE SPLITS ARE BUILT BY src.data.build_v3, NOT BY prepare_dataset.
+#     python -m src.data.build_v3 --sources <clone-dir>     # builds BOTH variants
+#     python -m src.data.build_v3 --verify-only             # before every training run
+# Running `python -m src.data.prepare_dataset` with this config would re-split
+# the pool with the v1/v2 logic (per-class, not per source family) and silently
+# break the nesting with v3_full. Don't. build_v3 --verify-only detects it.
+#
+# WHAT THIS TESTS
+# ---------------
+# v2 removed the background confound but scored 9/20 on real photographs.
+# Three of its four classes came from one collection. v3 draws every class from
+# several independent source families (wpldd, suhas/mubashar, hg3817, kiran)
+# and asks whether that transfers better. See docs/v3_experiment.md and
+# docs/v3_dataset_report.md.
+#
+# This variant caps every class at 3x the scarcest (Yellow Rust, 447), giving
+# 1,341 / 447 / 1,341 / 1,341 = 4,470 images, drawn as evenly as possible
+# across source families. It is NESTED in v3_full: each image here has the
+# same split it has there, so the two models can be scored on the same test
+# images without either having seen them.
+#
+# Background augmentation keeps v2's settings unchanged, so v2 -> v3 changes
+# one variable: the dataset.
+# ---------------------------------------------------------------------------
+
+model:
+  version: "v3_balanced"
+
+paths:
+  raw_dir: "data/v3_raw"
+  train_dir: "data/v3_balanced/train"
+  validation_dir: "data/v3_balanced/validation"
+  test_dir: "data/v3_balanced/test"
+
+data:
+  background_augmentation:
+    enabled: true
+    classes: ["Healthy", "Brown Rust", "Powdery Mildew"]
+    harvest_from: "Yellow Rust"
+    background_sources: ["harvested", "procedural"]
+    copies_per_image: 1
+    seed: 42
+    leaf_scale: [0.45, 0.95]
+    brightness_threshold: 0.70
+    saturation_threshold: 0.35
+    min_leaf_fraction: 0.04
+    jpeg_quality: 92
+
+training:
+  # Inverse-frequency weights, computed by src.model.datasets.compute_class_weights
+  # from the TRAINING split's labels only (src/model/train.py).
+  use_class_weights: true
+
+v3:
+  variant: "balanced"
+  manifest: "data/v3_manifest.csv"
