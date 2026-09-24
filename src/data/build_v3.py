@@ -23,13 +23,24 @@ Pipeline
     every family is represented in every split in proportion. Whole groups are
     assigned, never individual images, which is what makes cross-split leakage
     impossible rather than merely unlikely.
-7.  **Two nested variants.** ``v3_full`` is the entire pool. ``v3_balanced`` is
+7.  **External-test decontamination.** Pool images that are exact or near
+    duplicates of an external test photograph are removed *after* the split,
+    so no other image's split assignment moves. The build never reads
+    ``data/external_test/``: it compares against ``data/v3_external_fingerprints.csv``
+    (file name, SHA-256 and perceptual hash only - no labels, no pixels),
+    which ``--record-external-fingerprints`` writes as a separate, explicit step.
+8.  **Container repair.** Files whose content is WebP whatever their extension
+    are re-encoded to PNG from exactly the pixels Pillow decodes - no resize,
+    no crop, no colour change, ICC profile carried over - because TensorFlow's
+    ``decode_image`` cannot read WebP. Pixel equality is asserted per file and
+    both hashes are recorded.
+9.  **Two nested variants.** ``v3_full`` is the entire pool. ``v3_balanced`` is
     selected *from within each split* of ``v3_full``: every balanced image keeps
     the split it has in the full variant. So the balanced training set is a
     subset of the full training set and the balanced test set is a subset of
     the full test set, and both models can be scored on either test set without
     either having seen a test image.
-8.  **Stage** by hard link (no bytes copied, no bytes altered) into
+10. **Stage** by hard link (no bytes copied, no bytes altered) into
     ``data/v3_raw/``, ``data/v3_full/`` and ``data/v3_balanced/``, and write
     ``data/v3_manifest.csv`` and ``data/v3_removed.csv``.
 
@@ -46,6 +57,7 @@ Nothing in ``data/raw``, ``data/train``, ``data/validation``, ``data/test`` or
 
 Run::
 
+    python -m src.data.build_v3 --record-external-fingerprints   # after new external images
     python -m src.data.build_v3 --sources <clone-dir>            # build + verify
     python -m src.data.build_v3 --sources <clone-dir> --dry-run  # no files written
     python -m src.data.build_v3 --verify-only                    # re-verify on disk
@@ -69,6 +81,7 @@ from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
+from PIL import Image
 
 from ..utils.config import Config, load_config
 from ..utils.helpers import ensure_dir, get_logger, markdown_table, utc_timestamp, write_json, write_text
@@ -87,13 +100,17 @@ POOL_DIR = "data/v3_raw"
 VARIANT_DIRS = {"full": "data/v3_full", "balanced": "data/v3_balanced"}
 MANIFEST_PATH = "data/v3_manifest.csv"
 REMOVED_PATH = "data/v3_removed.csv"
+EXTERNAL_FINGERPRINTS_PATH = "data/v3_external_fingerprints.csv"
+EXTERNAL_FIELDS = ["file", "sha256", "phash"]
 
 MANIFEST_FIELDS = [
     "staged_name", "class", "class_dir", "source", "family", "source_commit",
-    "source_path", "sha256", "phash", "width", "height", "group_id",
+    "source_path", "sha256", "original_sha256", "converted", "phash", "width",
+    "height", "group_id",
     "split", "in_balanced",
 ]
-REMOVED_FIELDS = ["class", "source", "family", "source_path", "sha256", "reason", "kept_instead"]
+REMOVED_FIELDS = ["class", "source", "family", "source_path", "sha256", "reason",
+                  "kept_instead", "detail"]
 
 
 # ---------------------------------------------------------------------------
@@ -116,6 +133,8 @@ class PoolImage:
     split: str = ""
     in_balanced: bool = False
     staged_name: str = ""
+    original_sha256: str = ""  # SHA-256 of the upstream file
+    converted: str = ""        # e.g. "webp->png"; "" when staged byte-for-byte
 
     @property
     def uid(self) -> str:
@@ -135,6 +154,8 @@ class BuildResult:
     invalid: List[Dict[str, str]] = field(default_factory=list)
     declared: Dict[str, Dict[str, int]] = field(default_factory=dict)
     balanced_cap: int = 0
+    external_fingerprints_used: int = 0
+    converted: int = 0
     near_duplicate_groups: int = 0
     images_in_near_duplicate_groups: int = 0
     cross_class_groups: int = 0
@@ -303,10 +324,11 @@ def collect(config: Config, clone_root: Path, sources: Sequence[DatasetSource],
     return images, invalid, {k: dict(v) for k, v in declared.items()}
 
 
-def _removal(image: PoolImage, reason: str, kept: Optional[PoolImage]) -> Dict[str, str]:
+def _removal(image: PoolImage, reason: str, kept: Optional[PoolImage],
+             detail: str = "") -> Dict[str, str]:
     return {"class": image.class_name, "source": image.source, "family": image.family,
             "source_path": image.source_path, "sha256": image.sha256, "reason": reason,
-            "kept_instead": kept.uid if kept else ""}
+            "kept_instead": kept.uid if kept else "", "detail": detail}
 
 
 def drop_exact_duplicates(images: List[PoolImage], source_order: Sequence[str]
@@ -380,6 +402,99 @@ def assign_groups(images: List[PoolImage], threshold: int) -> Tuple[int, int, in
     multi = [m for m in members.values() if len(m) > 1]
     cross_class = sum(1 for m in multi if len({images[i].class_name for i in m}) > 1)
     return len(multi), sum(len(m) for m in multi), cross_class
+
+
+def load_external_fingerprints(path: Path) -> List[Dict[str, str]]:
+    """Read the external-test fingerprint file (file, sha256, phash). No labels."""
+    if not Path(path).exists():
+        return []
+    with Path(path).open("r", newline="", encoding="utf-8") as handle:
+        return [row for row in csv.DictReader(handle) if row.get("sha256")]
+
+
+def record_external_fingerprints(root: Path, config: Config) -> Path:
+    """Explicit, separate step: fingerprint data/external_test/ read-only.
+
+    Writes only file names, SHA-256 and perceptual hashes. It does not read the
+    manifest, so no label can be carried into the dataset build.
+    """
+    external_dir = root / "data" / "external_test"
+    hash_size = int((config.get("data", "deduplication", default={}) or {}).get("hash_size", 16))
+    rows = []
+    for path in sorted(iter_image_files(external_dir, config.supported_extensions)):
+        rows.append({"file": path.name, "sha256": file_sha256(path),
+                     "phash": perceptual_hash(path, hash_size=hash_size) or ""})
+    target = root / EXTERNAL_FINGERPRINTS_PATH
+    ensure_dir(target.parent)
+    with target.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=EXTERNAL_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+    return target
+
+
+def drop_external_overlap(images: List[PoolImage], fingerprints: Sequence[Dict[str, str]],
+                          threshold: int) -> Tuple[List[PoolImage], List[Dict[str, str]]]:
+    """Remove pool images that are exact or near duplicates of an external photograph."""
+    if not fingerprints:
+        return images, []
+    by_sha = {fp["sha256"]: fp["file"] for fp in fingerprints}
+    hashed = [fp for fp in fingerprints if fp.get("phash")]
+    external = hash_matrix([fp["phash"] for fp in hashed])
+    doomed: Dict[int, List[str]] = defaultdict(list)
+    for index, image in enumerate(images):
+        if image.sha256 in by_sha:
+            doomed[index].append(f"exact match of external {by_sha[image.sha256]}")
+    pool = hash_matrix([im.phash for im in images])
+    for i, j in near_pairs_between(pool, external, threshold):
+        distance = int(_POPCOUNT[np.bitwise_xor(pool[i], external[j])].sum())
+        note = f"near match (distance {distance}) of external {hashed[j]['file']}"
+        if not any(hashed[j]["file"] in n for n in doomed[i]):
+            doomed[i].append(note)
+    kept = [im for i, im in enumerate(images) if i not in doomed]
+    removed = [_removal(images[i], "external_test_overlap", None, "; ".join(notes))
+               for i, notes in sorted(doomed.items())]
+    return kept, removed
+
+
+def true_format(path: Path) -> str:
+    """The container format from the file's content, ignoring its extension."""
+    with Image.open(path) as image:
+        return str(image.format or "")
+
+
+def mark_conversions(images: List[PoolImage]) -> int:
+    """Flag files TensorFlow cannot decode (WebP content) for PNG re-encoding."""
+    count = 0
+    for image in images:
+        image.original_sha256 = image.sha256
+        if true_format(image.origin) == "WEBP":
+            image.converted = "webp->png"
+            count += 1
+    return count
+
+
+def write_png_exact(source: Path, destination: Path) -> str:
+    """Re-encode ``source`` as PNG from exactly the pixels Pillow decodes.
+
+    No resize, crop, mode change or colour transform; the ICC profile is carried
+    over. Raises if the written file does not decode to identical pixels.
+    Returns the new file's SHA-256.
+    """
+    ensure_dir(destination.parent)
+    with Image.open(source) as original:
+        original.load()
+        options = {}
+        if original.info.get("icc_profile"):
+            options["icc_profile"] = original.info["icc_profile"]
+        original.save(destination, format="PNG", **options)
+        with Image.open(destination) as written:
+            written.load()
+            if (written.mode != original.mode or written.size != original.size
+                    or not np.array_equal(np.asarray(written), np.asarray(original))):
+                destination.unlink()
+                raise RuntimeError(f"PNG re-encode of {source} is not pixel-identical")
+    return file_sha256(destination)
 
 
 def _stable_seed(*parts: object) -> int:
@@ -478,7 +593,8 @@ def staged_name(image: PoolImage) -> str:
     path = Path(image.source_path)
     folder = _UNSAFE.sub("-", path.parent.as_posix().replace("/", "_")).strip("-")
     stem = _UNSAFE.sub("-", path.stem).strip("-")
-    return f"{image.source}__{folder}__{stem}{path.suffix.lower()}"
+    suffix = ".png" if image.converted == "webp->png" else path.suffix.lower()
+    return f"{image.source}__{folder}__{stem}{suffix}"
 
 
 # ---------------------------------------------------------------------------
@@ -509,7 +625,10 @@ def stage(images: List[PoolImage], root: Path) -> None:
     pool = _guarded(root, POOL_DIR)
     for image in images:
         pooled = pool / image.class_dir / image.staged_name
-        _link(image.origin, pooled)
+        if image.converted == "webp->png":
+            image.sha256 = write_png_exact(image.origin, pooled)
+        else:
+            _link(image.origin, pooled)
         _link(pooled, _guarded(root, VARIANT_DIRS["full"]) / image.split / image.class_dir
               / image.staged_name)
         if image.in_balanced:
@@ -527,7 +646,8 @@ def write_manifest(images: List[PoolImage], path: Path) -> None:
                 "staged_name": image.staged_name, "class": image.class_name,
                 "class_dir": image.class_dir, "source": image.source, "family": image.family,
                 "source_commit": image.source_commit, "source_path": image.source_path,
-                "sha256": image.sha256, "phash": image.phash, "width": image.width,
+                "sha256": image.sha256, "original_sha256": image.original_sha256,
+                "converted": image.converted, "phash": image.phash, "width": image.width,
                 "height": image.height, "group_id": image.group_id, "split": image.split,
                 "in_balanced": int(image.in_balanced)})
 
@@ -552,8 +672,13 @@ def read_manifest(path: Path) -> List[Dict[str, str]]:
 # ---------------------------------------------------------------------------
 def build(config: Config, clone_root: Path, root: Optional[Path] = None,
           sources: Optional[Sequence[DatasetSource]] = None, workers: int = 1,
-          cache_path: Optional[Path] = None, dry_run: bool = False) -> BuildResult:
-    """Run steps 1-8. ``root`` is the repository root (defaults to the config's)."""
+          cache_path: Optional[Path] = None, dry_run: bool = False,
+          external_fingerprints: Optional[Sequence[Dict[str, str]]] = None) -> BuildResult:
+    """Run steps 1-10. ``root`` is the repository root (defaults to the config's).
+
+    ``external_fingerprints`` are rows of data/v3_external_fingerprints.csv;
+    the build never opens data/external_test/ itself.
+    """
     root = Path(root) if root else config.project_root
     sources = list(sources) if sources is not None else active_sources()
     dedup = config.get("data", "deduplication", default={}) or {}
@@ -580,8 +705,14 @@ def build(config: Config, clone_root: Path, root: Optional[Path] = None,
             f"{result.cross_class_groups} near-duplicate group(s) span more than one class - "
             f"they are kept in one split, but the labels disagree and should be reviewed")
     result.warnings += split_pool(images, result.split_fractions, result.seed)
+    # After the split, so removing these moves no other image between splits.
+    fingerprints = list(external_fingerprints or [])
+    result.external_fingerprints_used = len(fingerprints)
+    images, removed = drop_external_overlap(images, fingerprints, threshold)
+    result.removed += removed
     result.balanced_cap = select_balanced(images, result.balance_ratio)
 
+    result.converted = mark_conversions(images)
     for image in images:
         image.staged_name = staged_name(image)
     clashes = [n for n, c in Counter((im.class_dir, im.staged_name) for im in images).items()
@@ -659,6 +790,23 @@ def verify(root: Path, threshold: int, check_sha: bool = True,
         checks["sha256_matches_manifest"] = not bad
         checks["sha256_mismatches"] = bad[:20]
 
+    # 2b. TensorFlow cannot decode WebP; none may remain, whatever its extension.
+    webp = [row["staged_name"] for row in rows
+            if true_format(root / POOL_DIR / row["class_dir"] / row["staged_name"]) == "WEBP"]
+    checks["webp_files_remaining"] = len(webp)
+    checks["converted_files"] = sum(1 for row in rows if row.get("converted"))
+
+    # 2c. No pool image matches a recorded external-test fingerprint.
+    fingerprints = load_external_fingerprints(root / EXTERNAL_FINGERPRINTS_PATH)
+    shas = {fp["sha256"] for fp in fingerprints}
+    exact_ext = sum(1 for row in rows
+                    if row["sha256"] in shas or row.get("original_sha256") in shas)
+    near_ext = len(near_pairs_between(
+        hash_matrix([fp["phash"] for fp in fingerprints if fp.get("phash")]),
+        hash_matrix([row["phash"] for row in rows]), threshold))
+    checks["external_fingerprints_recorded"] = len(fingerprints)
+    checks["external_fingerprint_matches"] = exact_ext + near_ext
+
     # 3. No exact duplicate straddles two splits (any class).
     splits_by_sha: Dict[str, set] = defaultdict(set)
     for row in rows:
@@ -719,6 +867,8 @@ def verify(root: Path, threshold: int, check_sha: bool = True,
     checks["passed"] = bool(
         checks["disk_matches_manifest"]
         and checks.get("sha256_matches_manifest", True)
+        and checks["webp_files_remaining"] == 0
+        and checks["external_fingerprint_matches"] == 0
         and not stray_augmented
         and exact_cross == 0 and near_cross == 0
         and checks["groups_spanning_splits"] == 0
@@ -740,7 +890,8 @@ def check_external_isolation(root: Path, config: Config, threshold: int) -> Dict
     ext_sha = {file_sha256(p): p.name for p in files}
     ext_phash = [(p.name, perceptual_hash(p, hash_size=hash_size)) for p in files]
     ext_phash = [(n, h) for n, h in ext_phash if h]
-    exact = sorted({ext_sha[r["sha256"]] for r in rows if r["sha256"] in ext_sha})
+    exact = sorted({ext_sha[h] for r in rows
+                    for h in (r["sha256"], r.get("original_sha256", "")) if h in ext_sha})
     near = near_pairs_between(hash_matrix([h for _, h in ext_phash]),
                               hash_matrix([r["phash"] for r in rows]), threshold)
     return {"external_images_checked": len(files),
@@ -837,8 +988,13 @@ def to_markdown(result: Optional[BuildResult], summary: Dict[str, object],
         weights = data["class_weights_from_train"]
         lines += ["Class weights (train split only, same formula as training): "
                   + ", ".join(f"{c} {weights[c]:.3f}" for c in class_names), ""]
+    lines += ["## Removed", "", markdown_table(
+        ["Reason", "Class", "Source", "Count"],
+        [[r["reason"], r["class"], r["source"], r["count"]] for r in summary["removed"]]), ""]
     lines += ["## Verification", ""]
-    for key in ["disk_matches_manifest", "sha256_matches_manifest",
+    for key in ["disk_matches_manifest", "sha256_matches_manifest", "webp_files_remaining",
+                "converted_files", "external_fingerprints_recorded",
+                "external_fingerprint_matches",
                 "exact_duplicates_across_splits", "near_duplicates_across_splits",
                 "groups_spanning_splits", "balanced_not_nested_in_full",
                 "external_paths_in_v3", "augmented_outside_train", "passed"]:
@@ -867,19 +1023,33 @@ def main(argv: Optional[List[str]] = None) -> int:
                         help="also confirm, read-only, that no external-test image is in the pool")
     parser.add_argument("--check-decode", action="store_true",
                         help="also decode every image with TensorFlow, as training will")
+    parser.add_argument("--record-external-fingerprints", action="store_true",
+                        help="fingerprint data/external_test/ (read-only, no labels) and exit")
     args = parser.parse_args(argv)
 
     config = load_config(args.config)
     root = config.project_root
+    if args.record_external_fingerprints:
+        target = record_external_fingerprints(root, config)
+        LOGGER.info("wrote %s (%d image(s))", target,
+                    len(load_external_fingerprints(target)))
+        return 0
     threshold = int((config.get("data", "deduplication", default={}) or {}).get("hash_threshold", 5))
 
     result: Optional[BuildResult] = None
     if not args.verify_only:
         if not args.sources:
             parser.error("--sources is required unless --verify-only")
+        fingerprints = load_external_fingerprints(root / EXTERNAL_FINGERPRINTS_PATH)
+        if fingerprints:
+            LOGGER.info("decontaminating against %d external-test fingerprint(s)",
+                        len(fingerprints))
+        else:
+            LOGGER.warning("no external-test fingerprints recorded - external-overlap "
+                           "removal skipped (run --record-external-fingerprints)")
         result = build(config, Path(args.sources), root, workers=args.workers,
                        cache_path=Path(args.cache) if args.cache else None,
-                       dry_run=args.dry_run)
+                       dry_run=args.dry_run, external_fingerprints=fingerprints)
         for warning in result.warnings:
             LOGGER.warning(warning)
         if args.dry_run:
@@ -903,6 +1073,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             "split_fractions": result.split_fractions, "hash_size": result.hash_size,
             "hash_threshold": result.hash_threshold, "balance_ratio": result.balance_ratio,
             "balanced_cap": result.balanced_cap, "declared": result.declared,
+            "external_fingerprints_used": result.external_fingerprints_used,
+            "converted": result.converted,
             "invalid": result.invalid, "near_duplicate_groups": result.near_duplicate_groups,
             "images_in_near_duplicate_groups": result.images_in_near_duplicate_groups,
             "cross_class_groups": result.cross_class_groups, "warnings": result.warnings}

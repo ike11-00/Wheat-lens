@@ -26,9 +26,12 @@ from PIL import Image
 
 import src.data.build_v3 as build_v3
 from src.data.build_v3 import (
-    MANIFEST_PATH, POOL_DIR, REMOVED_PATH, SPLITS, VARIANT_DIRS, build, check_external_isolation,
-    class_weights, hash_matrix, near_pairs_between, read_manifest, staged_name, verify,
+    EXTERNAL_FIELDS, EXTERNAL_FINGERPRINTS_PATH, MANIFEST_PATH, POOL_DIR, REMOVED_PATH, SPLITS,
+    VARIANT_DIRS, build, check_external_isolation, class_weights, hash_matrix,
+    load_external_fingerprints, near_pairs_between, read_manifest, record_external_fingerprints,
+    staged_name, true_format, verify,
 )
+from src.utils.image_io import file_sha256
 from src.data.sources_v3 import DatasetSource, SourceFolder, active_sources, source_families
 from src.utils.config import load_config
 from src.utils.image_io import perceptual_hash
@@ -103,6 +106,8 @@ def corpus(tmp_path):
       * beta has 8 genuinely new images                     -> keep
       * one byte-identical file is labelled both Healthy and Brown Rust in gamma
                                                             -> drop from both classes
+      * alpha/PM/disguised.jpg is WebP content with a .jpg name
+                                                            -> re-encode to identical PNG
     """
     clones = tmp_path / "clones"
     c = Corpus(clones)
@@ -115,6 +120,8 @@ def corpus(tmp_path):
     alpha_br = [c.put("alpha", "BR", f"b{i:03d}.png", c.fresh()) for i in range(40)]
     for i in range(30):
         c.put("alpha", "PM", f"p{i:03d}.png", c.fresh())
+    disguised = clones / "alpha" / "PM" / "disguised.jpg"          # WebP content, .jpg name
+    c.fresh().save(disguised, format="WEBP", quality=80)
 
     for i in range(4):                                                    # beta near-copies
         c.put("beta", "H", f"copy{i}.png", _near(Image.open(alpha_healthy[i + 1])))
@@ -139,7 +146,7 @@ def corpus(tmp_path):
         _source("gamma", [("YR", "Yellow Rust"), ("H", "Healthy"), ("BR", "Brown Rust")]),
     ]
     return {"clones": clones, "sources": sources, "root": tmp_path / "repo",
-            "alpha_healthy": alpha_healthy, "alpha_br": alpha_br}
+            "alpha_healthy": alpha_healthy, "alpha_br": alpha_br, "disguised": disguised}
 
 
 def _config(seed: int = 42):
@@ -153,9 +160,15 @@ def _config(seed: int = 42):
     })
 
 
-def _build(corpus, seed: int = 42, dry_run: bool = False):
+def _build(corpus, seed: int = 42, dry_run: bool = False, fingerprints=None):
     return build(_config(seed), corpus["clones"], root=corpus["root"],
-                 sources=corpus["sources"], workers=1, dry_run=dry_run)
+                 sources=corpus["sources"], workers=1, dry_run=dry_run,
+                 external_fingerprints=fingerprints)
+
+
+def _fingerprint_of(path: Path) -> dict:
+    return {"file": path.name, "sha256": file_sha256(path),
+            "phash": perceptual_hash(path, 16)}
 
 
 # ---------------------------------------------------------------------------
@@ -305,10 +318,19 @@ def test_verify_passes_on_a_clean_build(corpus):
 
 
 def test_staged_files_are_byte_identical_to_the_originals(corpus):
+    """Every file not flagged for WebP repair is staged byte-for-byte.
+
+    Converted files are covered by the stricter pixel-identity test below.
+    """
     result = _build(corpus)
+    checked = 0
     for image in result.images:
+        if image.converted:
+            continue
         staged = corpus["root"] / POOL_DIR / image.class_dir / image.staged_name
         assert staged.read_bytes() == image.origin.read_bytes()
+        checked += 1
+    assert checked == len(result.images) - 1
 
 
 def test_verify_detects_a_file_missing_from_disk(corpus):
@@ -447,6 +469,124 @@ def test_external_directory_is_outside_every_v3_path():
 
 
 # ---------------------------------------------------------------------------
+# External-test decontamination
+# ---------------------------------------------------------------------------
+def test_external_overlap_is_removed_and_recorded(corpus):
+    target = corpus["alpha_br"][5]
+    result = _build(corpus, dry_run=True, fingerprints=[_fingerprint_of(target)])
+    removed = [r for r in result.removed if r["reason"] == "external_test_overlap"]
+    assert [Path(r["source_path"]).name for r in removed] == [target.name]
+    assert "exact match of external" in removed[0]["detail"]
+    assert not [im for im in result.images if im.origin == target]
+
+
+def test_external_near_match_is_removed_too(corpus, tmp_path):
+    """An external photo that is a re-encode of a pool image, not a byte copy."""
+    near = tmp_path / "ext_near.png"
+    _near(Image.open(corpus["alpha_br"][7])).save(near)
+    result = _build(corpus, dry_run=True, fingerprints=[_fingerprint_of(near)])
+    removed = [r for r in result.removed if r["reason"] == "external_test_overlap"]
+    assert [Path(r["source_path"]).name for r in removed] == [corpus["alpha_br"][7].name]
+    assert "near match" in removed[0]["detail"]
+
+
+def test_external_removal_moves_no_other_image_between_splits(corpus):
+    before = {im.uid: im.split for im in _build(corpus, dry_run=True).images}
+    after = {im.uid: im.split for im in _build(
+        corpus, dry_run=True, fingerprints=[_fingerprint_of(corpus["alpha_br"][5])]).images}
+    assert len(after) == len(before) - 1
+    assert all(before[uid] == split for uid, split in after.items())
+
+
+def test_external_removal_keeps_the_balanced_counts_exact(corpus):
+    base = Counter(im.class_name for im in _build(corpus, dry_run=True).images if im.in_balanced)
+    after = _build(corpus, dry_run=True,
+                   fingerprints=[_fingerprint_of(corpus["alpha_healthy"][20])])
+    chosen = Counter(im.class_name for im in after.images if im.in_balanced)
+    assert chosen == base
+
+
+def test_fingerprint_file_holds_no_labels(tmp_path, config):
+    external = tmp_path / "data" / "external_test"
+    external.mkdir(parents=True)
+    _smooth(5).save(external / "ext_01.png")
+    (external / "manifest.csv").write_text("file,true_class\next_01.png,Brown Rust\n")
+    target = record_external_fingerprints(tmp_path, config)
+    text = target.read_text()
+    assert text.splitlines()[0] == ",".join(EXTERNAL_FIELDS)
+    assert "Brown Rust" not in text and "true_class" not in text
+    assert load_external_fingerprints(target)[0]["file"] == "ext_01.png"
+
+
+def test_verify_fails_if_a_pool_image_matches_a_recorded_fingerprint(corpus):
+    result = _build(corpus)
+    root = corpus["root"]
+    fp = _fingerprint_of(result.images[3].origin)
+    with (root / EXTERNAL_FINGERPRINTS_PATH).open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=EXTERNAL_FIELDS)
+        writer.writeheader()
+        writer.writerow(fp)
+    checks = verify(root, THRESHOLD)
+    assert not checks["passed"]
+    assert checks["external_fingerprint_matches"] >= 1
+
+
+# ---------------------------------------------------------------------------
+# WebP content with a .jpg name
+# ---------------------------------------------------------------------------
+def test_disguised_webp_is_reencoded_to_a_pixel_identical_png(corpus):
+    result = _build(corpus)
+    image = next(im for im in result.images if im.origin == corpus["disguised"])
+    assert image.converted == "webp->png"
+    assert image.staged_name.endswith(".png")
+    staged = corpus["root"] / POOL_DIR / image.class_dir / image.staged_name
+    assert true_format(staged) == "PNG"
+    with Image.open(corpus["disguised"]) as original, Image.open(staged) as written:
+        assert written.size == original.size and written.mode == original.mode
+        assert np.array_equal(np.asarray(written), np.asarray(original))
+    row = next(r for r in read_manifest(corpus["root"] / MANIFEST_PATH)
+               if r["staged_name"] == image.staged_name)
+    assert row["original_sha256"] == file_sha256(corpus["disguised"])
+    assert row["sha256"] == file_sha256(staged)
+    assert row["sha256"] != row["original_sha256"]
+    # The upstream file is untouched.
+    assert true_format(corpus["disguised"]) == "WEBP"
+
+
+def test_only_webp_content_is_converted(corpus):
+    result = _build(corpus)
+    converted = [im for im in result.images if im.converted]
+    assert [im.origin for im in converted] == [corpus["disguised"]]
+    for image in result.images:
+        if not image.converted:
+            staged = corpus["root"] / POOL_DIR / image.class_dir / image.staged_name
+            assert staged.read_bytes() == image.origin.read_bytes()
+
+
+def test_converted_png_decodes_in_tensorflow(corpus):
+    import tensorflow as tf
+    result = _build(corpus)
+    image = next(im for im in result.images if im.converted)
+    staged = corpus["root"] / POOL_DIR / image.class_dir / image.staged_name
+    decoded = tf.io.decode_image(tf.io.read_file(str(staged)), channels=3,
+                                 expand_animations=False)
+    assert tuple(decoded.shape[:2]) == (image.height, image.width)
+    with pytest.raises(Exception):
+        tf.io.decode_image(tf.io.read_file(str(corpus["disguised"])), channels=3,
+                           expand_animations=False)
+
+
+def test_verify_fails_if_webp_content_remains(corpus):
+    result = _build(corpus)
+    image = next(im for im in result.images if not im.converted)
+    staged = corpus["root"] / POOL_DIR / image.class_dir / image.staged_name
+    Image.open(staged).convert("RGB").save(staged, format="WEBP")
+    checks = verify(corpus["root"], THRESHOLD, check_sha=False)
+    assert not checks["passed"]
+    assert checks["webp_files_remaining"] == 1
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 def test_registry_folds_mubashar_into_the_suhas_family():
@@ -477,8 +617,8 @@ def real_rows():
 def test_real_full_variant_counts(real_rows):
     totals = Counter(r["class"] for r in real_rows)
     assert totals == {"Healthy": 2388, "Yellow Rust": 447,
-                      "Brown Rust": 2488, "Powdery Mildew": 1687}
-    assert len(real_rows) == 7010
+                      "Brown Rust": 2479, "Powdery Mildew": 1687}
+    assert len(real_rows) == 7001
 
 
 @needs_manifest
@@ -498,6 +638,9 @@ def test_real_removals_match_the_approved_decision():
     assert family == {"Brown Rust": 200, "Healthy": 67}
     assert all(r["source"] == "mubashar" for r in removed
                if r["reason"] == "near_duplicate_of_suhas")
+    external = [r for r in removed if r["reason"] == "external_test_overlap"]
+    assert len(external) == 9
+    assert {(r["source"], r["class"]) for r in external} == {("suhas", "Brown Rust")}
 
 
 @needs_manifest
@@ -505,6 +648,27 @@ def test_real_keeps_the_177_unique_mubashar_images(real_rows):
     kept = Counter(r["class"] for r in real_rows if r["source"] == "mubashar")
     assert kept == {"Brown Rust": 118, "Healthy": 59}
     assert {r["family"] for r in real_rows if r["source"] == "mubashar"} == {"suhas"}
+
+
+@needs_manifest
+def test_real_webp_files_were_converted(real_rows):
+    converted = [r for r in real_rows if r["converted"]]
+    assert len(converted) == 80
+    assert {r["converted"] for r in converted} == {"webp->png"}
+    assert {(r["source"], r["class"]) for r in converted} == {("suhas", "Brown Rust")}
+    assert all(r["staged_name"].endswith(".png") for r in converted)
+    assert all(r["sha256"] != r["original_sha256"] for r in converted)
+    assert all(r["sha256"] == r["original_sha256"] for r in real_rows if not r["converted"])
+
+
+@needs_manifest
+def test_real_pool_matches_no_recorded_external_fingerprint(real_rows):
+    fingerprints = load_external_fingerprints(PROJECT_ROOT / EXTERNAL_FINGERPRINTS_PATH)
+    assert fingerprints, "external fingerprints must be recorded before the V3 build"
+    shas = {fp["sha256"] for fp in fingerprints}
+    assert not [r for r in real_rows if r["sha256"] in shas or r["original_sha256"] in shas]
+    assert near_pairs_between(hash_matrix([fp["phash"] for fp in fingerprints]),
+                              hash_matrix([r["phash"] for r in real_rows]), THRESHOLD) == []
 
 
 @needs_manifest

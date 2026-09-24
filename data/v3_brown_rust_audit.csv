@@ -1,0 +1,61 @@
+index,staged_name,split,in_balanced,size,category,reasoning
+1,suhas__Images_Leaf-Rust__02111.jpg,train,1,800x1067,likely Brown Rust,"Heavy, uniform orange-brown coating on several leaves; no vein-bounded striping (medium confidence)"
+2,suhas__Images_Leaf-Rust__00481.jpg,train,1,3264x1836,unclear,Dense fine yellow pustules on a chlorotic leaf with a streaky texture; leans stripe rust but not resolvable
+3,suhas__Images_Leaf-Rust__04401.jpg,validation,1,366x138,not a usable wheat-leaf image,"Composite textbook figure: three labelled panels (leaf rust, stripe rust, tan spot)"
+4,suhas__Images_Leaf-Rust__04051.jpg,validation,1,266x189,unclear,266x189 with a stock watermark across the leaf; arrangement not resolvable
+5,suhas__Images_Leaf-Rust__03801.jpg,train,1,168x300,likely Brown Rust,Cluster of round brown pustules scattered on a yellowing leaf
+6,suhas__Images_Leaf-Rust__02751.jpeg,train,0,223x226,likely Brown Rust,Round orange-brown pustules scattered at random
+7,suhas__Images_Leaf-Rust__01961.jpg,train,1,390x280,not a usable wheat-leaf image,Stock field panorama; no leaf-level disease visible
+8,suhas__Images_Leaf-Rust__08501.jpg,test,1,195x280,not a usable wheat-leaf image,Stock photo of green plants; no rust visible
+9,suhas__Images_Leaf-Rust__01701.jpg,train,1,288x192,likely Brown Rust,"Round orange pustules scattered across the blade, with necrotic streaks"
+10,suhas__Images_Leaf-Rust__06671.jpg,validation,0,3264x1836,likely Brown Rust,Small pustules scattered at random with chlorotic mottling
+11,suhas__Images_Leaf-Rust__00611.jpg,train,1,1920x1920,likely Brown Rust,"Sparse, scattered pustules on a leaf held in the hand"
+12,suhas__Images_Leaf-Rust__00571.jpg,train,1,4032x2268,not a usable wheat-leaf image,Field of young wheat in rows; no disease visible
+13,suhas__Images_Leaf-Rust__01801.jpg,train,1,5184x3456,not a usable wheat-leaf image,"Wheat head, not a leaf: bright yellow pustules on a glume (glume infection is more typical of stripe rust)"
+14,suhas__Images_Leaf-Rust__03741.jpg,test,1,183x275,unclear,"Low resolution, watermark; pale flecks only"
+15,suhas__Images_Leaf-Rust__03911.jpg,train,1,195x259,unclear,Dense orange-brown coating with a row-like texture; 195x259
+16,suhas__Images_Leaf-Rust__08051.png,train,0,390x280,likely Brown Rust,Round orange pustules scattered at random
+17,suhas__Images_Leaf-Rust__00511.jpg,train,1,4272x2848,likely Brown Rust,"Sparse, scattered pustules on detached seedling leaves"
+18,suhas__Images_Leaf-Rust__08671.jpg,train,0,400x268,likely Brown Rust,"Pustules with chlorotic halos, scattered"
+19,suhas__Images_Leaf-Rust__03481.jpg,train,1,184x274,not a usable wheat-leaf image,"Stem/culm, not a leaf: erumpent pustules with torn epidermis - stem-rust presentation"
+20,suhas__Images_Leaf-Rust__06591.png,train,1,430x643,likely Yellow/Stripe Rust,"Pustules in stripes along the veins, leaf yellowing"
+21,suhas__Images_Leaf-Rust__03771.jpg,train,1,275x183,likely Brown Rust,"Pustules with chlorotic halos, scattered"
+22,suhas__Images_Leaf-Rust__07141.jpg,train,1,3264x1836,likely Yellow/Stripe Rust,Long chlorotic stripe with pustules in a single line
+23,suhas__Images_Leaf-Rust__04501.jpg,train,1,236x214,not a usable wheat-leaf image,Multi-panel scientific figure with day labels
+24,suhas__Images_Leaf-Rust__00101.png,validation,1,1050x762,not a usable wheat-leaf image,Lettered figure of four leaves (a-d)
+25,suhas__Images_Leaf-Rust__02911.jpg,train,1,267x189,unclear,Stock watermark across the leaves; low resolution
+26,suhas__Images_Leaf-Rust__05261.jpg,validation,0,5472x3648,likely Brown Rust,Small pustules scattered with chlorosis (low confidence)
+27,suhas__Images_Leaf-Rust__02861.jpg,test,1,305x165,unclear,Senesced leaf with fine speckling; low resolution
+28,suhas__Images_Leaf-Rust__03701.jpg,train,1,165x306,likely Yellow/Stripe Rust,Continuous stripe of pustules confined between veins
+29,suhas__Images_Leaf-Rust__05221.jpg,test,1,5472x3648,likely Brown Rust,Small pustules scattered at random
+30,suhas__Images_Leaf-Rust__01801.jpeg,train,0,237x354,likely Brown Rust,"Pustules with chlorotic halos, scattered"
+31,suhas__Images_Leaf-Rust__05851.jpg,train,1,2000x1300,not a usable wheat-leaf image,"A lawn of turf grass; no wheat leaf, no disease"
+32,suhas__Images_Leaf-Rust__01851.jpg,train,1,1277x1280,not a usable wheat-leaf image,Lettered figure (A-E) from a leaf-rust (Lr21) experiment
+33,suhas__Images_Leaf-Rust__05471.jpg,train,0,5472x3648,likely Brown Rust,Small pustules scattered at random
+34,suhas__Images_Leaf-Rust__05301.jpg,train,1,5472x3648,likely Brown Rust,"Round pustules scattered, with chlorotic flecks"
+35,suhas__Images_Leaf-Rust__04281.jpg,train,1,275x183,likely Yellow/Stripe Rust,Canopy of leaves with longitudinal orange stripes (medium confidence)
+36,suhas__Images_Leaf-Rust__00851.png,train,1,511x764,likely Brown Rust,Dense round pustules scattered over the whole blade - textbook leaf rust
+37,suhas__Images_Leaf-Rust__07281.jpg,train,0,3264x1836,unclear,Dark linear streaks (possibly telia) - neither typical presentation
+38,suhas__Images_Leaf-Rust__08401.jpg,validation,1,195x280,not a usable wheat-leaf image,Stock photo of plants; no rust visible
+39,suhas__Images_Leaf-Rust__02451.jpg,train,1,1920x1920,likely Yellow/Stripe Rust,Pustules in vein-parallel rows with chlorotic stripes
+40,suhas__Images_Leaf-Rust__05831.jpg,train,1,1920x1080,likely Brown Rust,Pustules scattered at random
+41,suhas__Images_Leaf-Rust__01551.jpg,train,1,5184x3456,likely Yellow/Stripe Rust,Long orange stripes along the veins
+42,suhas__Images_Leaf-Rust__08581.jpg,validation,1,195x280,not a usable wheat-leaf image,Stock photo of grass; no rust visible
+43,suhas__Images_Leaf-Rust__04721.jpg,train,0,259x194,not a usable wheat-leaf image,Composite with an inset; stems with stem-rust-like pustules
+44,suhas__Images_Leaf-Rust__05501.jpg,validation,0,5472x3648,likely Brown Rust,"Small pustules scattered, chlorotic flecks"
+45,suhas__Images_Leaf-Rust__03401.jpg,train,1,275x184,unclear,Yellow-orange pustules in a patch; arrangement ambiguous
+46,suhas__Images_Leaf-Rust__01391.png,validation,1,390x280,not a usable wheat-leaf image,No rust pustules: discoloured leaf with purple/dark spots - a different condition
+47,suhas__Images_Leaf-Rust__00961.jpg,train,1,2848x4272,likely Yellow/Stripe Rust,Many leaves with long yellow-orange stripes (high confidence)
+48,suhas__Images_Leaf-Rust__03861.jpg,train,1,300x168,unclear,Heavily processed image; uniform yellow coating
+49,suhas__Images_Leaf-Rust__04631.jpg,validation,1,275x183,likely Yellow/Stripe Rust,Orange stripes along the veins
+50,suhas__Images_Leaf-Rust__01561.jpg,train,1,3264x1836,likely Yellow/Stripe Rust,Long yellow stripe with fine pustules (medium confidence)
+51,suhas__Images_Leaf-Rust__01941.png,train,1,462x280,not a usable wheat-leaf image,Stock field panorama; no leaf-level disease
+52,suhas__Images_Leaf-Rust__07201.jpg,validation,1,390x496,likely Yellow/Stripe Rust,Strong yellow-orange stripes along the veins (high confidence)
+53,suhas__Images_Leaf-Rust__05541.jpg,test,1,5472x3648,likely Brown Rust,Round pustules scattered at random
+54,suhas__Images_Leaf-Rust__02971.jpg,train,1,184x274,likely Brown Rust,"Pustules with chlorotic halos, scattered (same photo as #30, correctly grouped)"
+55,suhas__Images_Leaf-Rust__05711.png,train,1,283x213,unclear,"Canopy of senescing leaves, 283x213; pustules not resolvable"
+56,suhas__Images_Leaf-Rust__05431.jpg,train,1,5472x3648,likely Brown Rust,Small pustules scattered at random
+57,suhas__Images_Leaf-Rust__03631.jpg,train,1,300x168,unclear,"Low resolution; small pustules, arrangement unclear"
+58,suhas__Images_Leaf-Rust__04311.jpg,train,1,259x195,unclear,Same photograph as #55 (correctly grouped); not resolvable
+59,suhas__Images_Leaf-Rust__01411.png,train,1,390x280,likely Yellow/Stripe Rust,Fine yellow-orange stripes along the full leaf (high confidence)
+60,suhas__Images_Leaf-Rust__03111.jpg,validation,1,259x194,likely Brown Rust,Four detached leaves; dense scattered pustules
